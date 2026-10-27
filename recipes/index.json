@@ -3,7 +3,7 @@
  "count": 1,
  "recipes": [
   {
-   "id": "evil",
+   "id": "cyuwrb3w",
    "name": "Evil",
    "description": "Turns Qwen hostile without breaking coherence. Two neurons: one pushed up, one pulled down.",
    "model": "Qwen/Qwen3.5-4B",

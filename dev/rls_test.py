@@ -77,9 +77,11 @@ try:
     ra = f"rls-a-{tag}"
     s, d = call("POST", "/rest/v1/recipes", ta, recipe(ra, author_handle="_lyraaaa_", user_id=ub, origin="repo", hidden=True),
                 prefer="return=representation")
-    made.append(ra)
     row = d[0] if s == 201 else {}
     check("publish", s == 201, d)
+    check("client can't pick the id", row.get("id") not in (None, ra) and len(row.get("id", "")) == 8, row.get("id"))
+    ra = row.get("id", ra)
+    made.append(ra)
     check("author handle can't be spoofed", row.get("author_handle") == ha, row.get("author_handle"))
     check("owner can't be spoofed", row.get("user_id") == ua, row.get("user_id"))
     check("origin/hidden can't be spoofed", row.get("origin") == "site" and row.get("hidden") is False, row)
@@ -91,20 +93,19 @@ try:
                      ({"examples": []}, "no examples"),
                      ({"examples": [{"prompt": "hi", "output": "  "}]}, "blank output"),
                      ({"tags": ["Bad Tag"]}, "bad tag"),
-                     ({"source": "javascript:alert(1)"}, "bad source url"),
-                     ({"id": "Bad Id"}, "bad id")]:
+                     ({"source": "javascript:alert(1)"}, "bad source url")]:
         rid = f"rls-bad-{secrets.token_hex(2)}"
         body = recipe(rid, **bad) if "id" not in bad else {**recipe(rid), **bad}
-        s, d = call("POST", "/rest/v1/recipes", ta, body)
+        s, d = call("POST", "/rest/v1/recipes", ta, body, prefer="return=representation")
         check(f"invalid recipe refused: {why}", s >= 400, d)
-        if s < 400:
-            made.append(body["id"])
+        if s < 400 and isinstance(d, list) and d:
+            made.append(d[0]["id"])
 
     s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{ra}", tb, {"name": "pwned"}, prefer="return=representation")
     check("other user can't edit", s in (200, 204) and not d, d)
     s, d = call("DELETE", f"/rest/v1/recipes?id=eq.{ra}", tb, prefer="return=representation")
     check("other user can't delete", s in (200, 204) and not d, d)
-    s, d = call("PATCH", "/rest/v1/recipes?id=eq.evil", tb, {"name": "pwned"}, prefer="return=representation")
+    s, d = call("PATCH", "/rest/v1/recipes?id=eq.cyuwrb3w", tb, {"name": "pwned"}, prefer="return=representation")
     check("can't edit repo recipes", s in (200, 204) and not d, d)
     s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{ra}", ta, {"name": "renamed", "user_id": ub, "author_handle": "x", "hidden": True},
                 prefer="return=representation")
@@ -151,7 +152,7 @@ try:
     check("admin can hide comments", s == 200 and d and d[0]["hidden"] is True, d)
     s, d = call("GET", f"/rest/v1/comments?recipe_id=eq.{ra}&select=id,hidden")
     check("hidden comments are hidden from the public", s == 200 and all(c["id"] != cid for c in d), d)
-    s, d = call("PATCH", "/rest/v1/recipes?id=eq.evil", ta, {"notes": None}, prefer="return=representation")
+    s, d = call("PATCH", "/rest/v1/recipes?id=eq.cyuwrb3w", ta, {"notes": None}, prefer="return=representation")
     check("admin can edit repo recipes", s == 200 and d, d)
     s, d = call("DELETE", f"/rest/v1/recipes?id=eq.{ra}", ta, prefer="return=representation")
     check("owner/admin can delete", s == 200 and d, d)

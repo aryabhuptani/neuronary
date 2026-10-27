@@ -12,7 +12,7 @@ const SB = process.env.SUPABASE_URL, SERVICE = process.env.SUPABASE_SERVICE_ROLE
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const tag = Math.random().toString(16).slice(2, 7);
 const handle = `e2e_${tag}`;
-const rid = `e2e-recipe-${tag}`;
+let rid = null; // assigned by the database on publish
 const fails = [];
 const check = (name, ok, detail = "") => { console.log((ok ? "ok   " : "FAIL ") + name + (!ok && detail ? `  [${detail}]` : "")); if (!ok) fails.push(name); };
 
@@ -31,10 +31,10 @@ let userId = null;
 try {
   await page.goto(BASE + "#/browse", { waitUntil: "networkidle0" });
   check("loads recipes from the database", await waitFor(() => document.querySelectorAll(".card").length > 0));
-  check("evil is there", !!(await page.$('.card[data-open="evil"]')));
+  check("evil is there", !!(await page.$('.card[data-open="cyuwrb3w"]')));
 
   // vote while signed out -> sign-in prompt -> pick a name
-  await page.click('.card[data-open="evil"] .votes button[data-v="1"]');
+  await page.click('.card[data-open="cyuwrb3w"] .votes button[data-v="1"]');
   check("signed-out vote asks to sign in", await waitFor(() => !!document.querySelector(".signin-pop")));
   await page.type(".signin-pop input", "x");
   await page.click(".signin-pop [data-ok]");
@@ -46,14 +46,14 @@ try {
   userId = await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.includes("auth-token")); return k && JSON.parse(localStorage[k]).user.id; });
   await shot("signed_in");
 
-  await page.click('.card[data-open="evil"] .votes button[data-v="1"]');
-  check("vote counts", await waitFor(() => document.querySelector('.card[data-open="evil"] .votes').classList.contains("v1")));
+  await page.click('.card[data-open="cyuwrb3w"] .votes button[data-v="1"]');
+  check("vote counts", await waitFor(() => document.querySelector('.card[data-open="cyuwrb3w"] .votes').classList.contains("v1")));
   await page.waitForNetworkIdle({ idleTime: 500 });
   await page.reload({ waitUntil: "networkidle0" });
-  check("vote persists after reload", await waitFor(() => document.querySelector('.card[data-open="evil"] .votes')?.classList.contains("v1")));
+  check("vote persists after reload", await waitFor(() => document.querySelector('.card[data-open="cyuwrb3w"] .votes')?.classList.contains("v1")));
 
   // comment + reply in the popup
-  await page.click('.card[data-open="evil"]');
+  await page.click('.card[data-open="cyuwrb3w"]');
   await waitFor(() => !!document.querySelector(".modal [data-new]"));
   await page.click(".modal [data-new]");
   await page.type(".modal [data-new]", "e2e comment");
@@ -64,13 +64,15 @@ try {
   await page.click(".modal [data-replybox] button");
   check("reply posts", await waitFor(() => [...document.querySelectorAll(".modal .cmts ul .b")].some((b) => b.textContent === "e2e reply")));
   await shot("popup_comments");
-  check("evil isn't editable by a normal user", !(await page.$('.modal .ractions a[href^="#/edit/"]')));
+  check("evil isn't editable by a normal user", !(await page.$('.modal .ractions [data-ract="edit"]')));
   await page.keyboard.press("Escape");
 
   // publish
   await page.evaluate(() => localStorage.removeItem("nr.draft"));
-  await page.goto(BASE + "#/submit", { waitUntil: "networkidle0" });
+  await page.goto(BASE + "#/", { waitUntil: "networkidle0" });
   await page.reload({ waitUntil: "networkidle0" });
+  await page.click("[data-submit]");
+  check("submit opens without changing the url", await waitFor(() => !!document.querySelector('[data-k="name"]')) && (await page.evaluate(() => location.hash)) === "#/");
   await page.type('[data-k="name"]', `E2E recipe ${tag}`);
   await page.type('[data-k="description"]', "made by the end-to-end test");
   await page.type("[data-tagtext]", "test,");
@@ -82,13 +84,14 @@ try {
   await page.type('[data-e="output"]', "Arr.");
   await shot("submit");
   await page.click("[data-publish]");
-  check("publish lands on the recipe", await waitFor((rid) => location.hash === `#/r/${rid}`, 10000, rid), await page.evaluate(() => location.hash));
+  check("publish lands on the recipe", await waitFor(() => /^#\/r\/[a-z0-9]{8}$/.test(location.hash), 10000), await page.evaluate(() => location.hash));
+  rid = (await page.evaluate(() => location.hash)).slice(4);
   check("recipe page shows sampling", await waitFor(() => /rep pen 1\.1/.test(document.body.textContent)));
   check("author is the picked name", await waitFor((h) => document.querySelector(".meta")?.textContent.includes("@" + h), 8000, handle));
   await shot("published");
 
   // edit
-  await page.click('.ractions a[href^="#/edit/"]');
+  await page.click('.ractions [data-ract="edit"]');
   await waitFor(() => !!document.querySelector('[data-k="name"]'));
   await clear('[data-k="name"]');
   await page.type('[data-k="name"]', `E2E edited ${tag}`);
@@ -105,7 +108,7 @@ try {
   await browser.close();
   if (SB && SERVICE) {
     const h = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` };
-    await fetch(`${SB}/rest/v1/recipes?id=eq.${rid}`, { method: "DELETE", headers: h });
+    if (rid) await fetch(`${SB}/rest/v1/recipes?id=eq.${rid}`, { method: "DELETE", headers: h });
     if (userId) {
       await fetch(`${SB}/rest/v1/comments?user_id=eq.${userId}`, { method: "DELETE", headers: h });
       const r = await fetch(`${SB}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: h });

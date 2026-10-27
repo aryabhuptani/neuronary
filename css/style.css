@@ -391,3 +391,7 @@ body.modal-open .fab { display: none !important; }
 .hidbanner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px;
   border-radius: 6px; background: var(--downbg); color: var(--down); font-size: 13.5px; font-weight: 500; }
 button { -webkit-tap-highlight-color: transparent; }
+.nhead { padding: 28px 28px 0; }
+.nhead h1 { margin: 0; font-size: 30px; font-weight: 500; }
+.nhead .meta { margin-top: 8px; color: var(--dim); font-size: 13.5px; }
+@media (max-width: 640px) { .nhead { padding: 20px 14px 0; } }

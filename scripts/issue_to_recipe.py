@@ -3,6 +3,7 @@ and writes recipes/<id>.json. Sets step outputs id and name. Exits 1 with readab
 import json
 import os
 import re
+import secrets
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,10 +27,10 @@ def slug(s):
 
 def main():
     r = extract(os.environ.get("ISSUE_BODY", ""))
-    base = slug(r.get("id") or r.get("name") or "recipe")
-    rid, k = base, 2
+    alphabet = "abcdefghjkmnpqrstuvwxyz23456789"  # same as the database's gen_recipe_id()
+    rid = "".join(secrets.choice(alphabet) for _ in range(8))
     while os.path.exists(os.path.join(RECIPES, f"{rid}.json")):
-        rid, k = f"{base}-{k}", k + 1
+        rid = "".join(secrets.choice(alphabet) for _ in range(8))
     r = {"id": rid, **{k: v for k, v in r.items() if k != "id"}}
     r.setdefault("author", {"handle": os.environ.get("ISSUE_USER", "anonymous")})
     path = os.path.join(RECIPES, f"{rid}.json")

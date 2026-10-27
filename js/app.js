@@ -46,8 +46,8 @@ function parseRoute() {
     return { view: "browse", p };
   }
   if (parts[0] === "r" && parts[1]) return { view: "recipe", id: parts[1], p };
-  if (parts[0] === "submit") return { view: "submit", p };
-  if (parts[0] === "edit" && parts[1]) return { view: "edit", id: parts[1], p };
+  if (parts[0] === "submit") return { view: "submit-legacy", p };
+  if (parts[0] === "n" && parts[1]) return { view: "neuron", key: parts[1], p };
   return { view: "notfound", p };
 }
 
@@ -63,6 +63,7 @@ let modalPushed = false;
 let lastListHash = "#/";
 
 async function route() {
+  editorOpen = false;
   const r = parseRoute();
   if (typeof closePops === "function") closePops();
   syncSearchBox(r);
@@ -79,8 +80,8 @@ async function route() {
   if (wasModal && listShown && location.hash === lastListHash) return; // back to the list underneath, untouched
   if (r.view === "browse") { listShown = true; lastListHash = location.hash; return renderBrowse(r.p); }
   listShown = false;
-  if (r.view === "submit") { document.body.className = "page-submit"; editing = null; return renderSubmit(); }
-  if (r.view === "edit") { document.body.className = "page-submit"; return startEdit(r.id); }
+  if (r.view === "submit-legacy") { history.replaceState(null, "", "#/"); route(); return openEditor(); }
+  if (r.view === "neuron") { document.body.className = ""; listShown = true; lastListHash = location.hash; return renderNeuron(r.key); }
   document.body.className = "page";
   main.innerHTML = `<div class="empty">Nothing here. <a href="#/">neuronary</a></div>`;
 }
@@ -138,6 +139,8 @@ function paintVotes(r) {
 }
 
 document.addEventListener("click", (e) => {
+  const sb = e.target.closest("[data-submit]");
+  if (sb) { e.preventDefault(); if (overlay.innerHTML) closeModal(true); openEditor(); return; }
   const vb = e.target.closest("[data-vote] button[data-v]");
   if (vb) {
     e.preventDefault();
@@ -322,6 +325,23 @@ function sortRecipes(rs, sort) {
 }
 
 // ------------------------------------------------------------------ home
+// ------------------------------------------------------------------ neuron page
+function renderNeuron(key) {
+  const q = parseNeuronQuery(key);
+  if (!q) { main.innerHTML = `<div class="empty">Not a neuron id.</div>`; return; }
+  const k = neuronKey(q);
+  const uses = sortRecipes(RECIPES.filter((r) => r.neurons.some((n) => neuronKey(n) === k)), "top");
+  const doses = uses.map((r) => r.neurons.find((n) => neuronKey(n) === k).dose);
+  const models = [...new Set(uses.map((r) => r.model))];
+  const range = doses.length ? (Math.min(...doses) === Math.max(...doses) ? doseStr(doses[0]) : `${doseStr(Math.min(...doses))} … ${doseStr(Math.max(...doses))}`) : "";
+  document.title = `${k} · neuronary`;
+  main.innerHTML = `<div class="nhead">
+      <div class="idrow"><h1 class="rid">${k}</h1>${copyBtn(k, "copy neuron")}</div>
+      <div class="meta">${uses.length} recipe${uses.length === 1 ? "" : "s"}${range ? ` &nbsp;·&nbsp; doses <span class="mono">${range}</span>` : ""}${models.length ? ` &nbsp;·&nbsp; <span class="mono">${models.map(esc).join(", ")}</span>` : ""}</div>
+    </div>
+    ${uses.length ? `<div class="grid">${uses.map((r) => cardHtml(r, [])).join("")}</div>` : `<div class="empty">No recipes use ${k} yet.</div>`}`;
+}
+
 // ------------------------------------------------------------------ browse
 let openDd = null;
 let filtersOpen = false; // mobile: filter dropdowns collapsed behind the funnel icon
@@ -507,7 +527,7 @@ function recipeHtmlBlock(r, { modal }) {
       </div>
       <div class="blk"><div class="lab">neurons</div>
         ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
-          ${u > 0 ? `<a class="in" href="${browseHref({ q: neuronKey(n) })}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
+          ${u > 0 ? `<a class="in" href="#/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
       </div>
       <div class="blk"><div class="lab">method</div><div class="mono">${esc(methodTxt)}</div></div>
       ${samplingText(r) ? `<div class="blk"><div class="lab">recommended sampling</div><div class="mono">${esc(samplingText(r))}</div></div>` : ""}
@@ -534,7 +554,7 @@ function recipeActions(r) {
   const out = [];
   const b = (act, icon, label, cls = "") => `<button class="btn sbtn ${cls}" data-ract="${act}">${icon}<span>${label}</span></button>`;
   if (store.canEdit && store.canEdit(r)) {
-    out.push(`<a class="btn sbtn" href="#/edit/${esc(r.id)}">${I.edit}<span>Edit</span></a>`);
+    out.push(`<button class="btn sbtn" data-ract="edit">${I.edit}<span>Edit</span></button>`);
   }
   const u = store.user();
   if (u && u.admin && store.mode === "supabase") out.push(b("hide", I.eyeoff, r.hidden ? "Unhide" : "Hide"));
@@ -547,6 +567,10 @@ function wireRecipe(root, r) {
   $$("[data-ract]", root).forEach((b) => (b.onclick = async () => {
     const a = b.dataset.ract;
     try {
+      if (a === "edit") {
+        if (overlay.innerHTML) { closeModal(true); }
+        return openEditor(r.id);
+      }
       if (a === "delete") {
         if (!confirm(`Delete “${r.name}”? Votes and comments go with it.`)) return;
         await store.remove(r.id);
@@ -813,6 +837,27 @@ function recipeToDraft(r) {
   };
 }
 
+let editorOpen = false;
+let editorReturn = null; // scroll position of the page underneath
+
+// submit / edit live in the main area without changing the URL; any navigation closes them
+function openEditor(id = null) {
+  closePops();
+  editorOpen = true;
+  editorReturn = scrollY;
+  document.body.className = "page-submit";
+  scrollTo(0, 0);
+  if (id) return startEdit(id);
+  editing = null;
+  renderSubmit();
+}
+
+function closeEditor() {
+  editorOpen = false;
+  editing = null;
+  route().then(() => editorReturn != null && scrollTo(0, editorReturn));
+}
+
 async function startEdit(id) {
   main.innerHTML = `<div class="empty">…</div>`;
   let r = null;
@@ -1020,12 +1065,7 @@ function renderSubmit() {
   const pub = $("[data-pub]");
   const ghNew = (r) => `https://github.com/${CFG.repo}/new/${CFG.branch || "main"}?filename=${encodeURIComponent(`recipes/${r.id}.json`)}&value=${encodeURIComponent(recipeJson(r))}`;
   const ghIssue = (r) => `https://github.com/${CFG.repo}/issues/new?template=recipe.yml&title=${encodeURIComponent("recipe: " + r.name)}&recipe=${encodeURIComponent(recipeJson(r))}`;
-  const freeId = async (name) => {
-    const base = slugify(name);
-    let id = base;
-    for (let k = 2; await store.idTaken(id); k++) id = `${base}-${k}`;
-    return id;
-  };
+  const draftId = () => "new"; // the store assigns the real id
   const ready = async () => {
     const errs = validate(d);
     showErrs(errs, true);
@@ -1045,11 +1085,11 @@ function renderSubmit() {
       r.examples = r.examples.map((e) => ({ ...((o.examples || []).find((x) => x.prompt === e.prompt && x.output === e.output) || {}), ...e }));
       return r;
     }
-    return draftToRecipe(d, await freeId(d.name));
+    return draftToRecipe(d, draftId());
   };
 
   if (editing) {
-    pub.innerHTML = `<button class="btn primary" data-save>Save changes</button><a class="btn" href="#/r/${esc(editing)}" data-discard>Cancel</a>`;
+    pub.innerHTML = `<button class="btn primary" data-save>Save changes</button><button class="btn" data-discard>Cancel</button>`;
   } else if (store.mode === "supabase") {
     pub.innerHTML = signedIn() ? `<button class="btn primary" data-publish>Publish</button><span class="dim">as @${esc(u.handle)}</span>`
       : `<button class="btn primary" data-signin>Sign in to publish</button>`;
@@ -1066,10 +1106,11 @@ function renderSubmit() {
     if (!r) return;
     b.disabled = true; b.textContent = "Publishing…";
     try {
-      await store.submit(r);
+      const id = await store.submit(r);
       localStorage.removeItem(DRAFT_KEY);
       RECIPES = await store.list();
-      location.hash = "#/r/" + r.id;
+      editorOpen = false;
+      location.hash = "#/r/" + id;
     } catch (err) {
       b.disabled = false; b.textContent = "Publish failed: retry";
       flashError(err);
@@ -1085,11 +1126,12 @@ function renderSubmit() {
       localStorage.removeItem(draftKey());
       const id = editing;
       editing = null;
+      editorOpen = false;
       RECIPES = await store.list();
-      location.hash = "#/r/" + id;
+      if (location.hash === "#/r/" + id) route(); else location.hash = "#/r/" + id;
     } catch (err) { b.disabled = false; b.textContent = "Save failed: retry"; flashError(err); }
   });
-  bind("[data-discard]", () => { localStorage.removeItem(draftKey()); editing = null; });
+  bind("[data-discard]", () => { localStorage.removeItem(draftKey()); editing = null; closeEditor(); });
   bind("[data-pr]", async () => { const r = await ready(); if (r) window.open(ghNew(r), "_blank", "noopener"); });
   bind("[data-issue]", async () => { const r = await ready(); if (r) window.open(ghIssue(r), "_blank", "noopener"); });
   bind("[data-dl]", async () => { const r = await ready(); if (r) download(`${r.id}.json`, recipeJson(r)); });

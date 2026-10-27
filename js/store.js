@@ -129,9 +129,11 @@ class LocalStore {
 
   async submit(recipe) {
     const mine = LS.get("nr.local.recipes", []);
-    mine.push({ ...recipe, created_at: new Date().toISOString() });
+    const a = "abcdefghjkmnpqrstuvwxyz23456789";
+    const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (x) => a[x % a.length]).join("");
+    mine.push({ ...recipe, id, created_at: new Date().toISOString() });
     LS.set("nr.local.recipes", mine);
-    return recipe.id;
+    return id;
   }
 
   async idTaken(id) { return (await this.list()).some((r) => r.id === id); }
@@ -310,9 +312,10 @@ class SupabaseStore {
 
   async submit(recipe) {
     this._need();
-    const { error } = await this.sb.from("recipes").insert({ id: recipe.id, ...this._fields(recipe), author_handle: "" });
+    // the database assigns the id
+    const { data, error } = await this.sb.from("recipes").insert({ ...this._fields(recipe), author_handle: "" }).select("id").single();
     if (error) throw new Error(error.message);
-    return recipe.id;
+    return data.id;
   }
 
   async update(id, recipe) {
