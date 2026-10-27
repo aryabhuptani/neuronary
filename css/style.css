@@ -422,3 +422,4 @@ button { -webkit-tap-highlight-color: transparent; }
 .modnote { margin: 0 0 20px; font-size: 11.5px; color: var(--faint); }
 .modnote a { color: var(--faint); text-decoration: underline; text-decoration-color: var(--line2); }
 .modnote a:hover { color: var(--dim); }
+.rail .notes a { overflow-wrap: anywhere; }

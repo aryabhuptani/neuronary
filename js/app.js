@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027150239";
-import { createStore } from "./store.js?v=20261027150239";
+import { ABOUT_HTML } from "./about.js?v=20261027150311";
+import { createStore } from "./store.js?v=20261027150311";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027150239";
+} from "./format.js?v=20261027150311";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -46,7 +46,11 @@ function parseRoute() {
     p.set("tags", parts[1]);
     return { view: "browse", p };
   }
-  if (parts[0] === "r" && parts[1]) return { view: "recipe", id: parts[1], p };
+  if (parts[0] === "r" && parts[1]) {
+    const moved = { evil: "cyuwrb3w" }; // ids from before random ids
+    if (moved[parts[1]]) { history.replaceState(null, "", "#/r/" + moved[parts[1]]); return { view: "recipe", id: moved[parts[1]], p }; }
+    return { view: "recipe", id: parts[1], p };
+  }
   if (parts[0] === "submit") return { view: "submit-legacy", p };
   if (parts[0] === "n" && parts[1]) return { view: "neuron", key: parts[1], p };
   if (parts[0] === "about") return { view: "about", p };
@@ -95,6 +99,8 @@ function go(hash) {
 }
 
 // ------------------------------------------------------------------ common bits
+// escape, then turn bare http(s) URLs into links
+const linkify = (t) => esc(t).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener nofollow">${u}</a>`);
 function votesHtml(r, cls = "") {
   return `<span class="votes v${r.myVote} ${cls}" data-vote="${esc(r.id)}">
     <button class="upv" data-v="1" aria-label="upvote">${I.up}</button><span class="n">${r.score}</span><button class="downv" data-v="-1" aria-label="downvote">${I.down}</button></span>`;
@@ -583,7 +589,7 @@ function recipeHtmlBlock(r, { modal }) {
         ${aka.map((x) => `<div class="alias"><a href="#/r/${esc(x.id)}">${esc(x.name)}</a><span class="s">${x.score}</span></div>`).join("")}</div>` : ""}
       ${related.length ? `<div class="blk"><div class="lab">shares neurons with</div>
         ${related.map((x) => `<a class="rel" href="#/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
-      ${r.notes ? `<div class="blk"><div class="lab">notes</div><div class="notes">${esc(r.notes)}</div></div>` : ""}
+      ${r.notes ? `<div class="blk"><div class="lab">notes</div><div class="notes">${linkify(r.notes)}</div></div>` : ""}
       ${r.conditional ? `<div class="blk"><div class="lab">conditional</div><pre>${esc(JSON.stringify(r.conditional, null, 2))}</pre></div>` : ""}
     </aside>
   </div>`;
