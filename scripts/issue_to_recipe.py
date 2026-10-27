@@ -30,7 +30,7 @@ def main():
     rid, k = base, 2
     while os.path.exists(os.path.join(RECIPES, f"{rid}.json")):
         rid, k = f"{base}-{k}", k + 1
-    r["id"] = rid
+    r = {"id": rid, **{k: v for k, v in r.items() if k != "id"}}
     r.setdefault("author", {"handle": os.environ.get("ISSUE_USER", "anonymous")})
     path = os.path.join(RECIPES, f"{rid}.json")
     try:
