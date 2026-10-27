@@ -326,7 +326,7 @@ body.modal-open { overflow: hidden; }
 .top .right a.submitbtn:hover { text-decoration: none; filter: brightness(1.08); }
 .fab { display: none; position: fixed; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 30; height: 48px; padding: 0 20px 0 16px;
   align-items: center; gap: 8px; border-radius: 24px; background: var(--link); color: #fff; font-weight: 600; font-size: 15px;
-  box-shadow: 0 8px 24px -6px rgba(2, 132, 199, 0.55); }
+  box-shadow: 0 6px 16px -4px oklch(0 0 0 / 0.3), 0 2px 4px oklch(0 0 0 / 0.12); }
 :root[data-theme="dark"] .fab { color: #06151c; }
 .fab:hover { text-decoration: none; }
 body.modal-open .fab { display: none !important; }
@@ -447,3 +447,86 @@ button { -webkit-tap-highlight-color: transparent; }
 .me-pop .lab:first-child { padding: 2px 8px 10px; margin-bottom: 6px; border-bottom: 1px solid var(--raise); }
 .me-pop .menu-i { padding: 9px 8px; }
 .me-pop .lab:last-child { padding: 8px 8px 2px; }
+
+/* ======================================================================= polish (make-interfaces-feel-better) */
+:root {
+  /* a flat 1px ring, no lift: repeated cards stay quiet outlines (deslop), drawn with box-shadow so it adapts */
+  --shadow-border: 0 0 0 1px oklch(0 0 0 / 0.09);
+  --shadow-border-hover: 0 0 0 1px oklch(0 0 0 / 0.16);
+  --shadow-pop: 0 0 0 1px oklch(0 0 0 / 0.07), 0 8px 24px -4px oklch(0 0 0 / 0.14), 0 2px 6px oklch(0 0 0 / 0.06);
+  --img-outline: oklch(0 0 0 / 0.1);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+:root[data-theme="dark"] {
+  --shadow-border: 0 0 0 1px oklch(1 0 0 / 0.08);
+  --shadow-border-hover: 0 0 0 1px oklch(1 0 0 / 0.13);
+  --shadow-pop: 0 0 0 1px oklch(1 0 0 / 0.1), 0 12px 32px -4px oklch(0 0 0 / 0.7);
+  --img-outline: oklch(1 0 0 / 0.1);
+}
+
+/* typography */
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+h1, h2, h3, .card .name, .list .nm { text-wrap: balance; }
+p, .desc, .card .desc, .ex .o, .ex .p, .cmts .b, .mtext, .about dd, .about li, .lead { text-wrap: pretty; }
+.count, .cmt, .votes .n, .rail .vote .n, .ficon .badge, .hchip .n, .pop label .n, .suggest .n { font-variant-numeric: tabular-nums; }
+
+/* header: never wrap; the search box gives way first */
+header.top .right { flex: none; }
+header.top .right > *, .top .right a.submitbtn { white-space: nowrap; flex: none; }
+.search { min-width: 120px; }
+@media (max-width: 900px) { .top .right a.submitbtn span.long { display: none; } }
+
+/* shadows for depth, borders for structure */
+.card { border: 0; box-shadow: var(--shadow-border); transition: box-shadow 150ms ease-out; }
+.card:hover { box-shadow: var(--shadow-border-hover); }
+.btn { border: 0; box-shadow: var(--shadow-border); transition-property: box-shadow, scale, background-color; transition-duration: 150ms; transition-timing-function: ease-out; }
+.btn:hover { box-shadow: var(--shadow-border-hover); }
+.btn.primary { box-shadow: none; }
+.btn.flash-ok { box-shadow: 0 0 0 1px var(--ok); }
+.sbtn.danger { box-shadow: 0 0 0 1px color-mix(in oklch, var(--bad) 35%, transparent); }
+.sbtn.danger:hover { box-shadow: 0 0 0 1px var(--bad); }
+.sbtn.quiet { box-shadow: none; }
+.sbtn.quiet:hover { box-shadow: var(--shadow-border); }
+.dd > button, .ficon, .hchip { border: 0; box-shadow: var(--shadow-border); transition: box-shadow 150ms ease-out; }
+.dd > button:hover, .ficon:hover, .hchip:hover { box-shadow: var(--shadow-border-hover); }
+.dd.active > button, .ficon.active { box-shadow: none; }
+.pop, .suggest { border: 0; box-shadow: var(--shadow-pop); }
+
+/* concentric radii: outer = inner + padding */
+.pop { padding: 6px; border-radius: 10px; }                 /* rows 4px + 6px */
+.pop label, .suggest .row, .menu-i { border-radius: 4px; }
+.suggest { padding: 6px; border-radius: 10px; }
+.seg { border-radius: 5px; }                                  /* buttons 3px + 2px */
+.modal .sheet { border-radius: 12px; }
+.me-pop { border-radius: 12px; }                              /* items 4px + 8px */
+
+/* images: neutral inset outline */
+img.avatar, .about .shot img { outline: 1px solid var(--img-outline); outline-offset: -1px; }
+.about .shot img { border: 0; }
+
+/* press feedback (not on vote arrows: too frequent) */
+.btn:active, .xbtn:active, .fab:active, .submitbtn:active, .cbtn:active, .seg button:active { scale: 0.96; }
+.xbtn, .fab, .top .right a.submitbtn, .cbtn { transition-property: scale, background-color, color, filter; transition-duration: 150ms; transition-timing-function: ease-out; }
+
+/* hit areas: at least 40px, never overlapping */
+.votes button, .cbtn, #theme, .top .right a.iconlink, #mebtn, .modal .x, .tagin .tag button, .chip button { position: relative; }
+.votes button::after { content: ""; position: absolute; left: 50%; top: 50%; width: 22px; height: 40px; translate: -50% -50%; }
+.cbtn::after, #theme::after, .top .right a.iconlink::after, #mebtn::after, .modal .x::after { content: ""; position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; translate: -50% -50%; }
+.tagin .tag button::after, .chip button::after { content: ""; position: absolute; left: 50%; top: 50%; width: 24px; height: 24px; translate: -50% -50%; }
+
+/* optical alignment: icon side 2px tighter */
+.fab { padding: 0 20px 0 18px; }
+
+/* motion: quick, interruptible enters; nothing on page load */
+.modal { transition: opacity 150ms ease-out; }
+.modal .sheet { transition: opacity 150ms var(--ease), translate 150ms var(--ease); }
+/* account / sign-in popovers only: filter dropdowns re-render on every change and must not re-animate */
+.signin-pop, .me-pop, .suggest { transition: opacity 120ms ease-out, translate 120ms ease-out; }
+@starting-style {
+  .modal { opacity: 0; }
+  .modal .sheet { opacity: 0; translate: 0 8px; }
+  .signin-pop, .me-pop, .suggest:not([hidden]) { opacity: 0; translate: 0 -4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; }
+}
