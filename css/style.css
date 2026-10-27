@@ -301,6 +301,13 @@ body.modal-open { overflow: hidden; }
 .pub .dim { font-size: 12.5px; }
 .preview { margin-top: 18px; }
 
+/* menus, inline actions */
+.menu-i { display: block; width: 100%; text-align: left; padding: 6px; border-radius: 4px; color: var(--ink); font-size: 13.5px; }
+.menu-i:hover { background: var(--sel); text-decoration: none; }
+.ractions a, .ractions button { color: var(--dim); font-size: 13px; }
+.ractions a:hover, .ractions button:hover { color: var(--ink); text-decoration: none; }
+.signin-pop .lab b { font-weight: 500; }
+
 /* small screens */
 @media (max-width: 900px) {
   .rec { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "rail" "body"; }

@@ -1,8 +1,9 @@
-// Site configuration. Leave supabaseUrl empty to run without a backend: votes, comments and submissions then live in
-// the visitor's browser only, and "publish" offers a GitHub pull request / issue instead.
+// Site configuration. The Supabase anon key is public by design; row-level security (supabase/migrations) guards writes.
+// With supabaseUrl empty the site runs without a backend: votes, comments and submissions live in the visitor's
+// browser, and "publish" offers a GitHub pull request / issue instead.
 window.NEURONARY = {
-  supabaseUrl: "",
-  supabaseAnonKey: "",
+  supabaseUrl: "https://mcczbdcymyhzfputyqcr.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jY3piZGN5bXloemZwdXR5cWNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxMjMwNTksImV4cCI6MjEwODY5OTA1OX0.t9K3_sJ-xezKq3VmkXoEPJvF-kLLfK_GLK1s1GKfdA4",
   authProviders: ["twitter"], // Supabase provider ids; "twitter" is X
 
   // GitHub repo that holds recipes/*.json, as "owner/name". Enables the pull request / issue buttons on submit.

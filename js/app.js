@@ -37,6 +37,7 @@ function parseRoute() {
   }
   if (parts[0] === "r" && parts[1]) return { view: "recipe", id: parts[1], p };
   if (parts[0] === "submit") return { view: "submit", p };
+  if (parts[0] === "edit" && parts[1]) return { view: "edit", id: parts[1], p };
   return { view: "notfound", p };
 }
 
@@ -53,6 +54,7 @@ let lastListHash = "#/";
 
 async function route() {
   const r = parseRoute();
+  if (typeof closePops === "function") closePops();
   syncSearchBox(r);
   if (r.view === "recipe") {
     if (listShown && modalPushed) return openModal(r.id);
@@ -68,7 +70,8 @@ async function route() {
   if (r.view === "home") { listShown = true; lastListHash = location.hash || "#/"; document.body.className = "page"; return renderHome(); }
   if (r.view === "browse") { listShown = true; lastListHash = location.hash; return renderBrowse(r.p); }
   listShown = false;
-  if (r.view === "submit") { document.body.className = ""; return renderSubmit(); }
+  if (r.view === "submit") { document.body.className = ""; editing = null; return renderSubmit(); }
+  if (r.view === "edit") { document.body.className = ""; return startEdit(r.id); }
   document.body.className = "page";
   main.innerHTML = `<div class="empty">Nothing here. <a href="#/">neuronary</a></div>`;
 }
@@ -101,7 +104,7 @@ function cardHtml(r, on) {
 async function doVote(id, v) {
   const r = RECIPES.find((x) => x.id === id);
   if (!r) return;
-  if (store.mode === "supabase" && !store.user()) return signInPrompt("vote");
+  if (!signedIn()) return signInPrompt("vote");
   const next = r.myVote === v ? 0 : v;
   const prev = r.myVote;
   r.score += next - prev;
@@ -485,7 +488,8 @@ function recipeHtmlBlock(r, { modal }) {
       <div class="rid idline copyable" data-copy="${esc(recipeStr(r.neurons))}" title="click to copy">${recipeHtml(r.neurons)}</div>
       <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener">@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}">@${esc(r.author.handle)}</a>`}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
-        ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}</div>
+        ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}${r.hidden ? ` &nbsp;·&nbsp; <span class="err">hidden</span>` : ""}
+        <span class="ractions">${recipeActions(r)}</span></div>
       <div class="desc">${esc(r.description)}</div>
       <div class="tags">${tagsHtml(r.tags)}</div>
     </div>
@@ -533,7 +537,40 @@ async function loadRecipe(id) {
   return r;
 }
 
+function recipeActions(r) {
+  const out = [];
+  if (store.canEdit && store.canEdit(r)) out.push(`<a href="#/edit/${esc(r.id)}">edit</a>`, `<button data-ract="delete">delete</button>`);
+  const u = store.user();
+  if (u && u.admin && store.mode === "supabase") out.push(`<button data-ract="hide">${r.hidden ? "unhide" : "hide"}</button>`);
+  if (store.mode === "supabase" && !(store.canEdit && store.canEdit(r))) out.push(`<button data-ract="report">report</button>`);
+  return out.length ? " &nbsp;·&nbsp; " + out.join(" &nbsp;") : "";
+}
+
 function wireRecipe(root, r) {
+  $$("[data-ract]", root).forEach((b) => (b.onclick = async () => {
+    const a = b.dataset.ract;
+    try {
+      if (a === "delete") {
+        if (!confirm(`Delete “${r.name}”? Votes and comments go with it.`)) return;
+        await store.remove(r.id);
+        RECIPES = RECIPES.filter((x) => x.id !== r.id);
+        if (overlay.innerHTML) { closeModal(true); listShown = false; }
+        location.hash = "#/browse";
+      } else if (a === "hide") {
+        await store.setHidden(r.id, !r.hidden);
+        RECIPES = await store.list();
+        b.textContent = r.hidden ? "hide" : "unhide";
+        r.hidden = !r.hidden;
+      } else if (a === "report") {
+        if (!signedIn()) return signInPrompt("report");
+        const reason = prompt("What's wrong with this recipe?");
+        if (!reason || !reason.trim()) return;
+        await store.report({ recipeId: r.id, reason: reason.trim() });
+        b.textContent = "reported";
+        b.disabled = true;
+      }
+    } catch (e) { flashError(e); }
+  }));
   const seg = $("[data-exmode]", root);
   if (seg) seg.onclick = (e) => {
     const b = e.target.closest("button");
@@ -615,10 +652,10 @@ async function renderComments(root, r) {
   const u = store.user();
   const top = list.filter((c) => !c.parent_id);
   const kids = (id) => list.filter((c) => c.parent_id === id);
-  const one = (c) => `<li data-cid="${c.id}">${avatarHtml(c.handle)}<div>
+  const one = (c) => `<li data-cid="${c.id}"${c.hidden ? ' style="opacity:.45"' : ""}>${avatarHtml(c.handle)}<div>
       <div class="h"><b>${esc(c.handle)}</b><span>${esc(ago(c.created_at))}</span></div>
       <div class="b">${esc(c.body)}</div>
-      <div class="act">${!c.parent_id ? `<button data-reply="${c.id}">reply</button>` : ""}${u && u.handle === c.handle ? `<button data-del="${c.id}">delete</button>` : ""}</div>
+      <div class="act">${!c.parent_id ? `<button data-reply="${c.id}">reply</button>` : ""}${(u && u.handle === c.handle) || (u && u.admin) ? `<button data-del="${c.id}">delete</button>` : ""}${u && u.admin && store.mode === "supabase" ? `<button data-hide="${c.id}" data-h="${c.hidden ? 0 : 1}">${c.hidden ? "unhide" : "hide"}</button>` : ""}${store.mode === "supabase" && !(u && u.handle === c.handle) ? `<button data-rep="${c.id}">report</button>` : ""}</div>
       ${!c.parent_id ? `<ul>${kids(c.id).map(one).join("")}</ul><div data-replybox="${c.id}"></div>` : ""}</div></li>`;
   box.innerHTML = `<div class="cbox"><textarea placeholder="${u ? "add a comment" : "sign in to comment"}" data-new></textarea>
       <button class="btn" data-post hidden>Post</button></div>
@@ -627,7 +664,7 @@ async function renderComments(root, r) {
   if (cc) cc.textContent = list.length;
   const ta = $("[data-new]", box);
   const post = $("[data-post]", box);
-  ta.onfocus = () => { if (!store.user()) { ta.blur(); signInPrompt("comment"); } };
+  ta.onfocus = () => { if (!signedIn()) { ta.blur(); signInPrompt("comment"); } };
   ta.oninput = () => (post.hidden = !ta.value.trim());
   const send = async (body, parent, btn) => {
     btn.disabled = true;
@@ -641,49 +678,108 @@ async function renderComments(root, r) {
   post.onclick = () => send(ta.value.trim(), null, post);
   ta.onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && ta.value.trim()) send(ta.value.trim(), null, post); };
   $$("[data-reply]", box).forEach((b) => (b.onclick = () => {
-    if (!store.user()) return signInPrompt("comment");
+    if (!signedIn()) return signInPrompt("comment");
     const slot = $(`[data-replybox="${b.dataset.reply}"]`, box);
     slot.innerHTML = `<div class="cbox" style="margin:10px 0 0"><textarea placeholder="reply"></textarea><button class="btn">Reply</button></div>`;
     const t = $("textarea", slot);
     t.focus();
     $("button", slot).onclick = (e) => t.value.trim() && send(t.value.trim(), +b.dataset.reply, e.currentTarget);
   }));
+  $$("[data-hide]", box).forEach((b) => (b.onclick = async () => {
+    try { await store.hideComment(+b.dataset.hide, b.dataset.h === "1"); renderComments(root, r); } catch (e) { flashError(e); }
+  }));
+  $$("[data-rep]", box).forEach((b) => (b.onclick = async () => {
+    if (!signedIn()) return signInPrompt("report");
+    const reason = prompt("What's wrong with this comment?");
+    if (!reason || !reason.trim()) return;
+    try { await store.report({ commentId: +b.dataset.rep, reason: reason.trim() }); b.textContent = "reported"; b.disabled = true; } catch (e) { flashError(e); }
+  }));
   $$("[data-del]", box).forEach((b) => (b.onclick = async () => {
+    if (!confirm("Delete this comment?")) return;
     try { await store.deleteComment(r.id, +b.dataset.del); renderComments(root, r); } catch (e) { flashError(e); }
   }));
 }
 
 // ------------------------------------------------------------------ auth
+function signedIn() {
+  const u = store.user();
+  return !!u && !u.needsHandle;
+}
+
+let popJustOpened = false; // a pop opened by a click must survive that same click reaching document
+function closePops() { $$(".signin-pop, .me-pop").forEach((x) => x.remove()); }
+document.addEventListener("click", () => { if (!popJustOpened) closePops(); });
+
 function renderMe() {
   const u = store.user();
   const me = $("#me");
-  if (u) {
-    me.innerHTML = `<button id="mebtn" title="@${esc(u.handle)}: sign out">${avatarHtml(u.handle)}</button>`;
-    $("#mebtn").onclick = async () => { if (confirm(`Sign out @${u.handle}?`)) { await store.signOut(); } };
+  if (u && !u.needsHandle) {
+    me.innerHTML = `<button id="mebtn" aria-label="account">${avatarHtml(u.handle)}</button>`;
+    $("#mebtn").onclick = (e) => { e.stopPropagation(); meMenu(u); };
   } else {
-    me.innerHTML = `<button id="signin">sign in</button>`;
-    $("#signin").onclick = () => signInPrompt();
+    me.innerHTML = `<button id="signin">${u ? "pick a name" : "sign in"}</button>`;
+    $("#signin").onclick = (e) => { e.stopPropagation(); signInPrompt(); };
   }
 }
 
-function signInPrompt(why) {
-  if (store.mode === "supabase") return store.signIn();
-  // local mode: just a handle, kept in this browser
-  const prev = $(".signin-pop");
-  if (prev) prev.remove();
+function popAt(cls) {
+  closePops();
+  popJustOpened = true;
+  setTimeout(() => (popJustOpened = false), 0);
   const pop = document.createElement("div");
-  pop.className = "pop signin-pop";
-  pop.style.cssText = "position:fixed;top:60px;right:20px;left:auto;width:260px;z-index:70";
-  pop.innerHTML = `<div class="lab">${why ? `to ${esc(why)}, ` : ""}pick a handle (kept in this browser)</div>
-    <input type="text" placeholder="@handle" autocomplete="off"><div class="foot"><a href="#" data-cancel>cancel</a><a href="#" data-ok>sign in</a></div>`;
-  document.body.appendChild(pop);
-  const inp = $("input", pop);
-  inp.focus();
-  const ok = async () => { const h = inp.value.trim().replace(/^@/, ""); if (!h) return; await store.signIn(h); pop.remove(); };
-  $("[data-ok]", pop).onclick = (e) => { e.preventDefault(); ok(); };
-  $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); pop.remove(); };
-  inp.onkeydown = (e) => { if (e.key === "Enter") ok(); if (e.key === "Escape") pop.remove(); };
+  pop.className = "pop " + cls;
+  pop.style.cssText = "position:fixed;top:60px;right:20px;left:auto;width:280px;z-index:70";
   pop.addEventListener("click", (e) => e.stopPropagation());
+  document.body.appendChild(pop);
+  return pop;
+}
+
+function meMenu(u) {
+  const pop = popAt("me-pop");
+  const canLinkX = store.mode === "supabase" && u.anonymous && (store.providers() || []).includes("twitter");
+  pop.innerHTML = `<div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
+    <a class="menu-i" href="${browseHref({ author: u.handle })}">your recipes</a>
+    ${canLinkX ? `<button class="menu-i" data-link>link your X account</button>` : ""}
+    <button class="menu-i" data-out>sign out</button>
+    ${u.anonymous ? `<div class="lab" style="font-size:11.5px">This name lives in this browser's session. Signing out loses it${canLinkX ? " unless you link X first" : ""}.</div>` : ""}`;
+  $$("a.menu-i", pop).forEach((x) => (x.onclick = closePops));
+  const l = $("[data-link]", pop);
+  if (l) l.onclick = () => store.linkWith("twitter").catch(flashError);
+  $("[data-out]", pop).onclick = async () => {
+    if (u.anonymous && !confirm("Sign out? This anonymous name can't be recovered.")) return;
+    closePops();
+    await store.signOut();
+  };
+}
+
+function signInPrompt(why) {
+  const pop = popAt("signin-pop");
+  const u = store.user();
+  const x = store.mode === "supabase" && !u && (store.providers() || []).includes("twitter");
+  pop.innerHTML = `${why ? `<div class="lab">sign in to ${esc(why)}</div>` : ""}
+    ${x ? `<button class="btn primary" data-x style="width:100%;margin:4px 0 10px">Continue with X</button><div class="lab">or pick a name</div>` : `<div class="lab">pick a name${store.mode === "local" ? " (kept in this browser)" : ""}</div>`}
+    <input type="text" placeholder="name" autocomplete="off" maxlength="24" spellcheck="false">
+    <div class="err" data-err></div>
+    <div class="foot"><a href="#" data-cancel>cancel</a><a href="#" data-ok>continue</a></div>`;
+  const inp = $("input", pop);
+  if (!x) inp.focus();
+  const err = $("[data-err]", pop);
+  const ok = async () => {
+    const h = inp.value.trim().replace(/^@/, "");
+    if (!/^[A-Za-z0-9_]{2,24}$/.test(h)) { err.textContent = "2–24 letters, digits or _"; return; }
+    err.textContent = "";
+    try {
+      if (u && u.needsHandle) await store.claimHandle(h); else await store.signIn(h);
+      closePops();
+    } catch (e) {
+      err.textContent = /taken|duplicate|unique/i.test(e.message) ? "that name is taken" : e.message;
+    }
+  };
+  const xb = $("[data-x]", pop);
+  if (xb) xb.onclick = () => store.signInWith("twitter").catch(flashError);
+  $("[data-ok]", pop).onclick = (e) => { e.preventDefault(); ok(); };
+  $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); closePops(); };
+  inp.onkeydown = (e) => { if (e.key === "Enter") ok(); if (e.key === "Escape") closePops(); };
 }
 
 // ------------------------------------------------------------------ theme
@@ -699,8 +795,32 @@ const DRAFT_KEY = "nr.draft";
 const emptyDraft = () => ({ name: "", description: "", model: "Qwen/Qwen3.5-4B", tags: [], neurons: [{ layer: "", neuron: "", dose: "" }],
   op: "add", rep: "", temp: "", examples: [{ prompt: "", output: "", base_output: "" }], source: "", notes: "" });
 
+let editing = null; // recipe id while editing an existing recipe
+const draftKey = () => (editing ? `nr.draft.edit.${editing}` : DRAFT_KEY);
+
 function loadDraft() {
-  try { return { ...emptyDraft(), ...JSON.parse(localStorage.getItem(DRAFT_KEY)) }; } catch { return emptyDraft(); }
+  try { return { ...emptyDraft(), ...JSON.parse(localStorage.getItem(draftKey())) }; } catch { return emptyDraft(); }
+}
+
+function recipeToDraft(r) {
+  const s = r.sampling || {};
+  return {
+    name: r.name, description: r.description, model: r.model, tags: [...r.tags],
+    neurons: sortNeurons(r.neurons).map((n) => ({ layer: String(n.layer), neuron: String(n.neuron), dose: String(n.dose), ...(n.expert != null ? { expert: String(n.expert) } : {}) })),
+    op: (r.method && r.method.op) || "add", rep: s.repetition_penalty ?? "", temp: s.temperature ?? "",
+    examples: (r.examples && r.examples.length ? r.examples : [{ prompt: "", output: "" }]).map((e) => ({ prompt: e.prompt, output: e.output, base_output: e.base_output || "" })),
+    source: r.source || "", notes: r.notes || "", _orig: { method: r.method || null, sampling: r.sampling || null, conditional: r.conditional || null, aliases: r.aliases || [], examples: r.examples || [] },
+  };
+}
+
+async function startEdit(id) {
+  main.innerHTML = `<div class="empty">…</div>`;
+  let r = null;
+  try { r = await loadRecipe(id); } catch (e) { flashError(e); }
+  if (!r || !(store.canEdit && store.canEdit(r))) { main.innerHTML = `<div class="empty">You can't edit this recipe.</div>`; return; }
+  editing = id;
+  if (!localStorage.getItem(draftKey())) localStorage.setItem(draftKey(), JSON.stringify(recipeToDraft(r)));
+  renderSubmit();
 }
 
 function draftToRecipe(d, id) {
@@ -765,7 +885,7 @@ function renderSubmit() {
 
   main.innerHTML = `<div class="submit">
     <div class="panel">
-      <h1>New recipe</h1>
+      <h1>${editing ? "Edit recipe" : "New recipe"}</h1>
       <label class="drop" data-drop>import a Neuron Studio or recipe .json<input type="file" accept=".json,application/json" hidden></label>
       <label class="f" data-f="name"><span>name</span><input data-k="name" value="${esc(d.name)}" maxlength="80"></label>
       <label class="f" data-f="description"><span>description</span><textarea data-k="description" maxlength="600">${esc(d.description)}</textarea></label>
@@ -806,7 +926,7 @@ function renderSubmit() {
     </div>
   </div>`;
 
-  const save = () => localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  const save = () => localStorage.setItem(draftKey(), JSON.stringify(d));
   const refreshPreview = () => {
     const ns = d.neurons.filter((n) => n.layer !== "" && n.neuron !== "" && n.dose !== "" && Number.isFinite(Number(n.dose)))
       .map((n) => ({ layer: +n.layer, neuron: +n.neuron, dose: +n.dose }));
@@ -909,11 +1029,28 @@ function renderSubmit() {
     const errs = validate(d);
     showErrs(errs, true);
     if (Object.keys(errs).length) { const f = $(".f.bad input, .f.bad textarea"); if (f) f.focus(); return null; }
+    if (editing) {
+      const r = draftToRecipe(d, editing);
+      const o = d._orig || {};
+      // keep fields the form doesn't show (method details, conditional, aliases, per-example metadata)
+      if (o.method && r.method === undefined && (!o.method.op || o.method.op === "add")) r.method = o.method;
+      if (o.method && r.method) r.method = { ...o.method, op: r.method.op };
+      if (o.conditional) r.conditional = o.conditional;
+      if (o.aliases && o.aliases.length) r.aliases = o.aliases;
+      if (o.sampling) r.sampling = { ...o.sampling, ...(r.sampling || {}) };
+      if (o.sampling && !d.rep && o.sampling.repetition_penalty) delete r.sampling.repetition_penalty;
+      if (o.sampling && d.temp === "" && o.sampling.temperature != null) delete r.sampling.temperature;
+      if (r.sampling && !Object.keys(r.sampling).length) delete r.sampling;
+      r.examples = r.examples.map((e) => ({ ...((o.examples || []).find((x) => x.prompt === e.prompt && x.output === e.output) || {}), ...e }));
+      return r;
+    }
     return draftToRecipe(d, await freeId(d.name));
   };
 
-  if (store.mode === "supabase") {
-    pub.innerHTML = u ? `<button class="btn primary" data-publish>Publish</button><span class="dim">as @${esc(u.handle)}</span>`
+  if (editing) {
+    pub.innerHTML = `<button class="btn primary" data-save>Save changes</button><a class="btn" href="#/r/${esc(editing)}" data-discard>Cancel</a>`;
+  } else if (store.mode === "supabase") {
+    pub.innerHTML = signedIn() ? `<button class="btn primary" data-publish>Publish</button><span class="dim">as @${esc(u.handle)}</span>`
       : `<button class="btn primary" data-signin>Sign in to publish</button>`;
   } else {
     pub.innerHTML = `${CFG.repo ? `<button class="btn primary" data-pr>Open pull request</button><button class="btn" data-issue>Open issue</button>` : ""}
@@ -923,7 +1060,7 @@ function renderSubmit() {
   bind("[data-signin]", () => signInPrompt("publish"));
   bind("[data-publish]", async (e) => {
     const b = e.currentTarget;
-    if (store.mode === "local" && !store.user()) return signInPrompt("publish");
+    if (!signedIn()) return signInPrompt("publish");
     const r = await ready();
     if (!r) return;
     b.disabled = true; b.textContent = "Publishing…";
@@ -937,6 +1074,21 @@ function renderSubmit() {
       flashError(err);
     }
   });
+  bind("[data-save]", async (e) => {
+    const b = e.currentTarget;
+    const r = await ready();
+    if (!r) return;
+    b.disabled = true; b.textContent = "Saving…";
+    try {
+      await store.update(editing, r);
+      localStorage.removeItem(draftKey());
+      const id = editing;
+      editing = null;
+      RECIPES = await store.list();
+      location.hash = "#/r/" + id;
+    } catch (err) { b.disabled = false; b.textContent = "Save failed: retry"; flashError(err); }
+  });
+  bind("[data-discard]", () => { localStorage.removeItem(draftKey()); editing = null; });
   bind("[data-pr]", async () => { const r = await ready(); if (r) window.open(ghNew(r), "_blank", "noopener"); });
   bind("[data-issue]", async () => { const r = await ready(); if (r) window.open(ghIssue(r), "_blank", "noopener"); });
   bind("[data-dl]", async () => { const r = await ready(); if (r) download(`${r.id}.json`, recipeJson(r)); });

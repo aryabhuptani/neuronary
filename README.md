@@ -36,8 +36,7 @@ recipe `examples` format.
 
 ## Add a recipe
 
-- On the site: **submit**. With Supabase configured it publishes immediately. Without it, the form opens a pull
-  request or an issue on GitHub, or downloads the JSON.
+- On the site: **submit** (sign in with X or pick a name). It publishes immediately.
 - By pull request: add `recipes/<id>.json` (format: `schema/recipe.schema.json`), then run
   `python scripts/build_index.py` to validate and refresh `recipes/index.json`. CI runs the same check.
 - By issue: the "Recipe" issue form takes the JSON; a workflow validates it and opens the pull request.
@@ -52,7 +51,9 @@ recipe `examples` format.
 | `scripts/run.py` | local runner (transformers) |
 | `scripts/build_index.py` | validates recipes, writes `recipes/index.json` |
 | `scripts/issue_to_recipe.py` | used by the issue → pull request workflow |
-| `supabase/schema.sql` | tables and row-level security for votes, comments, submissions |
+| `supabase/migrations/` | database schema, row-level security, triggers |
+| `scripts/sync_repo.py` | upserts repo recipes into the database |
+| `dev/rls_test.py`, `dev/e2e_supabase.mjs` | backend security test, browser end-to-end test |
 | `dev/fixtures.json` | demo data, loaded with `?demo` |
 | `dev/shots.mjs` | headless-Chrome walkthrough: screenshots every screen, fails on console errors |
 | `sketches/` | design sketches (local only, not committed) |
@@ -62,12 +63,25 @@ recipe `examples` format.
     python -m http.server 8765
     open http://127.0.0.1:8765/?demo
 
-## Supabase (votes, comments, one-click publish)
+## Backend (Supabase)
 
-1. Create a project at supabase.com.
-2. SQL editor → paste `supabase/schema.sql` → run.
-3. Authentication → Providers: enable X / Twitter (needs an X developer app; callback URL is shown there), and any
-   others. Authentication → URL configuration: set the site URL to the live domain.
-4. Put the project URL and anon key in `config.js`.
+Votes, comments, accounts and on-site publishing live in Supabase (project `mcczbdcymyhzfputyqcr`). The database
+is the source of truth for recipes; `recipes/*.json` in this repo are synced in by `scripts/sync_repo.py`
+(GitHub Action `sync.yml`, on every push that touches `recipes/`). A synced recipe is only rewritten when its
+file changes, so examples added on the site survive.
 
-The anon key is public by design; row-level security in `schema.sql` limits writes to signed-in users' own rows.
+- Schema, rules and triggers: `supabase/migrations/`. Apply new migrations with `supabase db push` or the SQL editor.
+- Sign-in: X, or an anonymous session with a picked name (anonymous users can link X later).
+- Everyone reads; signed-in users write only their own rows. Handles, authorship and ownership are set by the
+  database, not the client. Admins (`profiles.is_admin`; the `_lyraaaa_` X account automatically) can edit, hide
+  or delete anything and read reports.
+- Limits: 20 recipes a day and 30 comments an hour per user; Supabase limits anonymous sign-ins per IP.
+- `config.js` holds the project URL and anon key. Both are public by design.
+
+Tests against a live project (they create and delete their own users and rows):
+
+    SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... python dev/rls_test.py
+    SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node dev/e2e_supabase.mjs http://127.0.0.1:8765/
+
+With `supabaseUrl` empty in `config.js` the site runs without a backend (votes and comments in localStorage,
+publishing via GitHub pull request or issue).
