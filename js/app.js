@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027164317";
-import { createStore } from "./store.js?v=20261027164317";
+import { ABOUT_HTML } from "./about.js?v=20261027164838";
+import { createStore } from "./store.js?v=20261027164838";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
-  methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027164317";
+  methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
+} from "./format.js?v=20261027164838";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -146,7 +146,17 @@ function paintVotes(r) {
 
 document.addEventListener("click", (e) => {
   const sb = e.target.closest("[data-submit]");
-  if (sb) { e.preventDefault(); if (overlay.innerHTML) closeModal(true); openEditor(); return; }
+  if (sb) {
+    e.preventDefault();
+    if (overlay.innerHTML) closeModal(true);
+    if (store.mode === "supabase" && !signedIn()) { // sign in first; the form opens once you're in
+      sessionStorage.setItem("nr.reopenSubmit", "1"); // survives the Twitter round trip
+      e.stopPropagation();
+      return signInPrompt("submit a recipe", () => { sessionStorage.removeItem("nr.reopenSubmit"); openEditor(); });
+    }
+    openEditor();
+    return;
+  }
   const vb = e.target.closest("[data-vote] button[data-v]");
   if (vb) {
     e.preventDefault();
@@ -619,9 +629,9 @@ function recipeHtmlBlock(r, { modal }) {
 
   const examples = (r.examples || []).map((e, i) => `<div class="ex" data-ex="${i}">
       <div class="p">${esc(e.prompt)}</div>
-      <div class="single"><div class="o">${esc(e.output)}</div></div>
-      ${e.base_output ? `<div class="pair" hidden><div><div class="lab s">steered${e.scale && e.scale !== 1 ? " ×" + e.scale : ""}</div><div class="o">${esc(e.output)}</div></div>
-        <div><div class="lab b">base</div><div class="o b-o">${esc(e.base_output)}</div></div></div>` : ""}
+      <div class="single"><div class="o md">${md(e.output)}</div></div>
+      ${e.base_output ? `<div class="pair" hidden><div><div class="lab s">steered${e.scale && e.scale !== 1 ? " ×" + e.scale : ""}</div><div class="o md">${md(e.output)}</div></div>
+        <div><div class="lab b">base</div><div class="o b-o md">${md(e.base_output)}</div></div></div>` : ""}
       ${e.scale && e.scale !== 1 ? `<div class="gen">doses ×${e.scale}</div>` : ""}
     </div>`).join("");
 
@@ -916,7 +926,7 @@ function meMenu(u) {
   };
 }
 
-function signInPrompt(why) {
+function signInPrompt(why, then = null) {
   const pop = popAt("signin-pop");
   const u = store.user();
   const x = store.mode === "supabase" && !u && xProvider();
@@ -935,6 +945,7 @@ function signInPrompt(why) {
     try {
       if (u && u.needsHandle) await store.claimHandle(h); else await store.signIn(h);
       closePops();
+      if (then) then();
     } catch (e) {
       err.textContent = /taken|duplicate|unique/i.test(e.message) ? "that name is taken" : e.message;
     }
@@ -945,7 +956,7 @@ function signInPrompt(why) {
     store.signInWith(xProvider()).catch(flashError);
   };
   $("[data-ok]", pop).onclick = (e) => { e.preventDefault(); ok(); };
-  $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); closePops(); };
+  $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); sessionStorage.removeItem("nr.reopenSubmit"); closePops(); };
   inp.onkeydown = (e) => { if (e.key === "Enter") ok(); if (e.key === "Escape") closePops(); };
 }
 
@@ -1308,6 +1319,8 @@ async function boot() {
   window.addEventListener("hashchange", route);
   await route();
   // back from an X sign-in started in the submit form: reopen it (the draft is in localStorage)
-  if (sessionStorage.getItem("nr.reopenSubmit")) { sessionStorage.removeItem("nr.reopenSubmit"); openEditor(); }
+  const reopen = sessionStorage.getItem("nr.reopenSubmit");
+  sessionStorage.removeItem("nr.reopenSubmit");
+  if (reopen && store.returnedFromOAuth && signedIn()) openEditor();
 }
 boot();

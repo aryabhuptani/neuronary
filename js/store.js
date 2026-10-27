@@ -167,6 +167,7 @@ class SupabaseStore {
     // clean the OAuth leftovers out of the address bar and go back to the page sign-in started from
     const qs = new URLSearchParams(location.search);
     if (qs.has("code") || qs.has("error") || qs.has("error_description")) {
+      this.returnedFromOAuth = !qs.has("error");
       if (qs.get("error_description")) console.error("sign-in failed:", qs.get("error_description"));
       const back = sessionStorage.getItem("nr.returnTo") || "#/";
       sessionStorage.removeItem("nr.returnTo");

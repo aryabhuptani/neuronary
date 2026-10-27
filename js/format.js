@@ -8,10 +8,9 @@ export function doseStr(d) {
   return s;
 }
 
-const pad = (n, w) => String(n).padStart(w, "0");
 
-// L13N7956 / L11E11N1111 (zero padded: 2-digit layer and expert, 4-digit neuron)
-export const neuronKey = (n) => `L${pad(n.layer, 2)}${n.expert != null ? "E" + pad(n.expert, 2) : ""}N${pad(n.neuron, 4)}`;
+// L13N7956 / L9N302 / L11E11N1111 (no zero padding; parsing accepts padded ids too)
+export const neuronKey = (n) => `L${n.layer}${n.expert != null ? "E" + n.expert : ""}N${n.neuron}`;
 export const neuronStr = (n) => neuronKey(n) + doseStr(n.dose);
 export const sortNeurons = (ns) => [...ns].sort((a, b) => a.layer - b.layer || (a.expert ?? -1) - (b.expert ?? -1) || a.neuron - b.neuron);
 export const recipeStr = (ns) => sortNeurons(ns).map(neuronStr).join(" ");
@@ -230,4 +229,45 @@ export function download(name, text) {
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// Minimal markdown for model outputs. Everything is HTML-escaped first, so nothing in the text can become markup
+// beyond what's produced here: paragraphs and line breaks, headings, lists, quotes, fenced and inline code,
+// bold/italic/strikethrough, and http(s) links.
+function mdInline(s) {
+  const codes = [];
+  s = s.replace(/`([^`\n]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
+  s = s
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, t, u) => `<a href="${u}" target="_blank" rel="noopener nofollow">${t}</a>`)
+    .replace(/\*\*([^*\n]+?)\*\*|__([^_\n]+?)__/g, (_, a, b) => `<strong>${a ?? b}</strong>`)
+    .replace(/(^|[^\w*])\*([^*\n]+?)\*(?!\w)/g, "$1<em>$2</em>")
+    .replace(/(^|[^\w_])_([^_\n]+?)_(?!\w)/g, "$1<em>$2</em>")
+    .replace(/~~([^~\n]+?)~~/g, "<del>$1</del>");
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[+i]}</code>`);
+}
+
+export function md(text) {
+  const src = esc(String(text ?? "")).replace(/\r\n?/g, "\n");
+  const out = [];
+  const parts = src.split(/^```[^\n]*\n?/m); // alternating prose / code
+  parts.forEach((part, k) => {
+    if (k % 2 === 1) { out.push(`<pre><code>${part.replace(/\n$/, "")}</code></pre>`); return; }
+    for (const block of part.split(/\n{2,}/)) {
+      if (!block.trim()) continue;
+      const lines = block.split("\n");
+      const h = /^(#{1,6})\s+(.*)$/.exec(block);
+      if (h && lines.length === 1) { out.push(`<p class="mdh">${mdInline(h[2])}</p>`); continue; }
+      if (lines.every((l) => /^\s*[-*+]\s+/.test(l))) {
+        out.push(`<ul>${lines.map((l) => `<li>${mdInline(l.replace(/^\s*[-*+]\s+/, ""))}</li>`).join("")}</ul>`); continue;
+      }
+      if (lines.every((l) => /^\s*\d+[.)]\s+/.test(l))) {
+        out.push(`<ol>${lines.map((l) => `<li>${mdInline(l.replace(/^\s*\d+[.)]\s+/, ""))}</li>`).join("")}</ol>`); continue;
+      }
+      if (lines.every((l) => /^&gt;\s?/.test(l))) {
+        out.push(`<blockquote>${lines.map((l) => mdInline(l.replace(/^&gt;\s?/, ""))).join("<br>")}</blockquote>`); continue;
+      }
+      out.push(`<p>${lines.map((l) => { const hh = /^(#{1,6})\s+(.*)$/.exec(l); return hh ? `<span class="mdh">${mdInline(hh[2])}</span>` : mdInline(l); }).join("<br>")}</p>`);
+    }
+  });
+  return out.join("");
 }
