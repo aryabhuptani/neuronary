@@ -77,7 +77,7 @@ export const ABOUT_HTML = `
   <p>Claude (or any MCP client), the neuron explorer and scripts can search, download and publish recipes for you. Sign in with
   Twitter, then open <b>API & agents</b> from the account menu for a token and copy-paste setup for Claude Code, Claude Desktop,
   Python and plain HTTP, plus a <a href="skill/neuronary/SKILL.md" target="_blank" rel="noopener">Claude skill</a> that
-  teaches the recipe format.</p>
+  teaches the recipe format. Or tell your agent: <i>Set up neuronary for me: read <a href="agents.md">neuronary.org/agents.md</a></i></p>
 
   <h2>Reading</h2>
   <ul class="reading">

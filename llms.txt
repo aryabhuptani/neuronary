@@ -1,0 +1,8 @@
+# neuronary
+
+> A public dictionary of neuron steering recipes for language models: sets of MLP neurons and doses, with example outputs.
+
+- [Setup and usage for agents](https://neuronary.org/agents.md): connecting via MCP or HTTP, the recipe format, dose units
+- [About](https://neuronary.org/#/about)
+- [Claude skill](https://neuronary.org/skill/neuronary/SKILL.md)
+- [Source](https://github.com/lyramakesmusic/neuronary)
