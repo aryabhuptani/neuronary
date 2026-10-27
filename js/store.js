@@ -153,6 +153,15 @@ class SupabaseStore {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.4");
     // PKCE: OAuth comes back as ?code=... (not #access_token=..., which the hash router would read as a page)
     this.sb = createClient(this.cfg.supabaseUrl, this.cfg.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" } });
+    // a tab opened before the PKCE switch can still come back with implicit-flow tokens in the hash (#access_token=...,
+    // possibly after a route like #/#access_token=...): finish that sign-in instead of dropping it
+    const implicit = location.hash.match(/access_token=([^&#]+).*refresh_token=([^&#]+)/) || location.hash.match(/refresh_token=([^&#]+).*access_token=([^&#]+)/);
+    if (implicit) {
+      const at = location.hash.match(/access_token=([^&#]+)/)[1], rt = location.hash.match(/refresh_token=([^&#]+)/)[1];
+      await this.sb.auth.setSession({ access_token: decodeURIComponent(at), refresh_token: decodeURIComponent(rt) }).catch((e) => console.error(e));
+      history.replaceState(null, "", location.pathname + (sessionStorage.getItem("nr.returnTo") || "#/"));
+      sessionStorage.removeItem("nr.returnTo");
+    }
     const { data, error } = await this.sb.auth.getSession();
     if (error) throw error;
     // clean the OAuth leftovers out of the address bar and go back to the page sign-in started from
