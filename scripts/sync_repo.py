@@ -49,9 +49,9 @@ def main():
     for path in sorted(glob.glob(os.path.join(ROOT, "recipes", "*.json"))):
         if os.path.basename(path) == "index.json":
             continue
-        raw = open(path, "rb").read()
-        r = json.loads(raw)
-        h = hashlib.sha256(raw).hexdigest()[:16]
+        r = json.loads(open(path, "rb").read())
+        # hash the parsed content, not the bytes, so line endings and formatting don't count as changes
+        h = hashlib.sha256(json.dumps(r, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
         cur = have.get(r["id"])
         if cur and cur["origin"] != "repo":
             print(f"skip {r['id']}: a site recipe already uses this id")
