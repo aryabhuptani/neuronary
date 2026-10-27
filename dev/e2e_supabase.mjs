@@ -51,6 +51,7 @@ try {
   check("signed in with a name", await waitFor(() => !!document.querySelector("#mebtn")));
   userId = await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.includes("auth-token")); return k && JSON.parse(localStorage[k]).user.id; });
   await shot("signed_in");
+  await page.waitForNetworkIdle({ idleTime: 500 }); // signing in reloads the list to show your votes
 
   await page.click(`.card[data-open="${FIX}"] .votes button[data-v="1"]`);
   check("vote counts", await waitFor((f) => document.querySelector(`.card[data-open="${f}"] .votes`).classList.contains("v1"), 8000, FIX));

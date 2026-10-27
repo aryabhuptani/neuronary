@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027161007";
-import { createStore } from "./store.js?v=20261027161007";
+import { ABOUT_HTML } from "./about.js?v=20261027161440";
+import { createStore } from "./store.js?v=20261027161440";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027161007";
+} from "./format.js?v=20261027161440";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -36,6 +36,7 @@ const I = {
 
 // ------------------------------------------------------------------ routing
 function parseRoute() {
+  if (/^#(access_token|error|refresh_token)=/.test(location.hash)) { history.replaceState(null, "", location.pathname + "#/"); }
   const h = location.hash.replace(/^#\/?/, "");
   const [path, qs] = h.split("?");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);

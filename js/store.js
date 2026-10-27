@@ -151,9 +151,18 @@ class SupabaseStore {
 
   async init() {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.4");
-    this.sb = createClient(this.cfg.supabaseUrl, this.cfg.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true } });
+    // PKCE: OAuth comes back as ?code=... (not #access_token=..., which the hash router would read as a page)
+    this.sb = createClient(this.cfg.supabaseUrl, this.cfg.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" } });
     const { data, error } = await this.sb.auth.getSession();
     if (error) throw error;
+    // clean the OAuth leftovers out of the address bar and go back to the page sign-in started from
+    const qs = new URLSearchParams(location.search);
+    if (qs.has("code") || qs.has("error") || qs.has("error_description")) {
+      if (qs.get("error_description")) console.error("sign-in failed:", qs.get("error_description"));
+      const back = sessionStorage.getItem("nr.returnTo") || "#/";
+      sessionStorage.removeItem("nr.returnTo");
+      history.replaceState(null, "", location.pathname + back);
+    }
     this.session = data.session;
     await this._loadProfile();
     // fail fast if the API is unreachable, so createStore can fall back
@@ -190,12 +199,17 @@ class SupabaseStore {
     };
   }
   providers() { return this.cfg.authProviders || []; }
+  // return to the bare site URL (a #route there would collide with the OAuth response); remember the route ourselves
+  _returnUrl() {
+    sessionStorage.setItem("nr.returnTo", location.hash || "#/");
+    return location.origin + location.pathname;
+  }
   async signInWith(provider) {
-    const { error } = await this.sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.href } });
+    const { error } = await this.sb.auth.signInWithOAuth({ provider, options: { redirectTo: this._returnUrl() } });
     if (error) throw error;
   }
   async linkWith(provider) {
-    const { error } = await this.sb.auth.linkIdentity({ provider, options: { redirectTo: location.href } });
+    const { error } = await this.sb.auth.linkIdentity({ provider, options: { redirectTo: this._returnUrl() } });
     if (error) throw error;
   }
   // anonymous session + handle
