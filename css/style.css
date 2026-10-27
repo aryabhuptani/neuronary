@@ -438,3 +438,12 @@ button { -webkit-tap-highlight-color: transparent; }
 .agents .toklist li .sbtn { margin-left: auto; }
 .agents .newtok { padding: 12px 14px; border-radius: 6px; background: var(--upbg); margin: 10px 0; }
 .agents .newtok code { font-size: 13px; overflow-wrap: anywhere; }
+/* rows of input + button share a height */
+.agents .tokform input, .agents .tokform .btn { height: 36px; }
+.agents .tokform .btn { padding: 0 16px; }
+.cbox .btn { height: 38px; align-self: flex-start; }
+/* account menu spacing */
+.me-pop { padding: 12px 8px 8px; }
+.me-pop .lab:first-child { padding: 2px 8px 10px; margin-bottom: 6px; border-bottom: 1px solid var(--raise); }
+.me-pop .menu-i { padding: 9px 8px; }
+.me-pop .lab:last-child { padding: 8px 8px 2px; }
