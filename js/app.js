@@ -475,11 +475,12 @@ function recipeHtmlBlock(r, { modal }) {
   return `<div class="rec">
     <div class="rhead">
       ${cat ? `<div class="crumb"><a href="#/c/${esc(cat.tag)}">${esc(cat.name)}</a> &nbsp;›&nbsp; ${esc(r.name)}</div>` : ""}
+      ${r.hidden ? `<div class="hidbanner">Hidden: only you and admins can see this recipe.${store.user() && store.user().admin ? ` <button class="btn sbtn" data-ract="hide">${I.eyeoff}<span>Unhide</span></button>` : ""}</div>` : ""}
       <h1>${esc(r.name)}</h1>
       <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}</div>
       <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener">@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}">@${esc(r.author.handle)}</a>`}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
-        ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}${r.hidden ? ` &nbsp;·&nbsp; <span class="err">hidden</span>` : ""}
+        ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}
 </div>
       ${recipeActions(r)}
       <div class="desc">${esc(r.description)}</div>
@@ -885,7 +886,6 @@ function renderSubmit() {
   main.innerHTML = `<div class="submit">
     <div class="panel">
       <h1>${editing ? "Edit recipe" : "New recipe"}</h1>
-      <label class="drop" data-drop>import a Neuron Studio or recipe .json<input type="file" accept=".json,application/json" hidden></label>
       <label class="f" data-f="name"><span>name</span><input data-k="name" value="${esc(d.name)}" maxlength="80"></label>
       <label class="f" data-f="description"><span>description</span><textarea data-k="description" maxlength="600">${esc(d.description)}</textarea></label>
       <div class="f" data-f="tags"><span>tags</span><div class="tagin" data-tagin>${d.tags.map((t) => `<span class="tag">${esc(t)}<button data-rmtag="${esc(t)}" aria-label="remove">×</button></span>`).join("")}
@@ -991,7 +991,7 @@ function renderSubmit() {
 
   // import
   const drop = $("[data-drop]");
-  const fileIn = $("input[type=file]", drop);
+  const fileIn = drop && $("input[type=file]", drop);
   const importText = (text) => {
     let o;
     try { o = JSON.parse(text); } catch { return flashError(new Error("not JSON")); }
@@ -1009,10 +1009,12 @@ function renderSubmit() {
     }
     save(); renderSubmit();
   };
+  if (drop) {
   fileIn.onchange = () => fileIn.files[0] && fileIn.files[0].text().then(importText);
   drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
   drop.ondragleave = () => drop.classList.remove("over");
   drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) f.text().then(importText); };
+  }
 
   // publish slot
   const pub = $("[data-pub]");

@@ -152,7 +152,7 @@ img.avatar { display: block; object-fit: cover; background: var(--raise); }
 
 .votes { display: inline-flex; align-items: center; gap: 4px; font: 500 12.5px var(--mono); }
 .votes button { display: grid; place-items: center; width: 18px; height: 18px; color: var(--faint); border-radius: 3px; }
-.votes button:hover { background: var(--raise); }
+@media (hover: hover) { .votes button:hover { background: var(--raise); } }
 .votes.v1 .n, .votes.v1 .upv { color: var(--up); }
 .votes.v-1 .n, .votes.v-1 .downv { color: var(--down); }
 .cmt { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font: 12.5px var(--mono); }
@@ -217,7 +217,7 @@ body.list-mode { background: var(--bg); }
 .rec .idrow { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
 .rec .idline { font-size: 17px; }
 .cbtn { display: inline-grid; place-items: center; flex: none; width: 30px; height: 30px; border-radius: 4px; color: var(--dim); }
-.cbtn:hover { background: var(--raise); color: var(--ink); }
+@media (hover: hover) { .cbtn:hover { background: var(--raise); color: var(--ink); } }
 .cbtn.done { color: var(--ok); }
 .rec .meta { margin-top: 10px; color: var(--dim); font-size: 13px; }
 .rec .meta a { color: var(--dim); }
@@ -237,7 +237,7 @@ body.list-mode { background: var(--bg); }
 .rail { font-size: 13.5px; }
 .rail .vote { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 4px; border-radius: 18px; background: var(--raise); }
 .rail .vote button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 4px; color: var(--faint); }
-.rail .vote button:hover { background: var(--bg); }
+@media (hover: hover) { .rail .vote button:hover { background: var(--bg); } }
 .rail .vote .n { font: 500 15px var(--mono); min-width: 2ch; text-align: center; }
 .rail .vote.v1 .n, .rail .vote.v1 .upv { color: var(--up); }
 .rail .vote.v-1 .n, .rail .vote.v-1 .downv { color: var(--down); }
@@ -388,3 +388,6 @@ body.modal-open .fab { display: none !important; }
   .home { padding: 24px 16px 48px; }
 }
 .menu-i.danger { color: var(--bad); }
+.hidbanner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding: 10px 14px;
+  border-radius: 6px; background: var(--downbg); color: var(--down); font-size: 13.5px; font-weight: 500; }
+button { -webkit-tap-highlight-color: transparent; }
