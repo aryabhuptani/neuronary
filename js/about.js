@@ -21,14 +21,16 @@ export const ABOUT_HTML = `
 
   <h2>Running a recipe</h2>
   <ul>
-    <li><b>In your browser:</b> on a Qwen3.5-4B recipe, <b>Studio</b> downloads a file for
-      <a href="https://huggingface.co/spaces/webml-community/neuron-studio" target="_blank" rel="noopener">Neuron Studio</a>,
-      xenova's in-browser playground, which runs the model on your GPU through WebGPU. Import the file there.</li>
+    <li><b>In the explorer:</b> <a href="https://github.com/lyramakesmusic/neuron-explorer" target="_blank" rel="noopener">neuron-explorer</a>
+      runs Qwen3.5-4B locally and lets you chat with any neuron pushed up or down, at any dose.</li>
     <li><b>In Python:</b> <b>Python</b> copies a self-contained script (transformers + forward hooks) that applies the
       recipe with the recommended sampling.</li>
     <li><b>From the command line:</b> <code>scripts/run.py</code> in the
       <a href="https://github.com/lyramakesmusic/neuronary" target="_blank" rel="noopener">neuronary repo</a> runs any
       recipe file or URL on CPU, CUDA or Apple silicon, and with <code>--compare</code> prints the unsteered reply too.</li>
+    <li><b>In your browser:</b> on a Qwen3.5-4B recipe, <b>Studio</b> downloads a file you can import into xenova's
+      <a href="https://huggingface.co/spaces/webml-community/neuron-studio" target="_blank" rel="noopener">Neuron Studio</a>,
+      which runs the model on your GPU through WebGPU.</li>
   </ul>
 
   <h2>Finding neurons</h2>
@@ -70,8 +72,8 @@ export const ABOUT_HTML = `
       <span class="dim">· Nick Cammarata. Most neurons in large models have one main job you can read off directly.</span></li>
     <li><a href="https://arxiv.org/abs/2605.12290" target="_blank" rel="noopener">Targeted Neuron Modulation via Contrastive Pair Search</a>
       <span class="dim">· Nous Research (CNA). Finding and steering sparse MLP neuron circuits with forward passes only.</span></li>
-    <li><a href="https://x.com/Sauers_" target="_blank" rel="noopener">@Sauers_</a></li>
-    <li><a href="https://x.com/_lyraaaa_" target="_blank" rel="noopener">@_lyraaaa_</a></li>
+    <li><a href="https://x.com/_lyraaaa_" target="_blank" rel="noopener">@_lyraaaa_</a> <span class="dim">on twitter</span></li>
+    <li><a href="https://x.com/Sauers_" target="_blank" rel="noopener">@Sauers_</a> <span class="dim">on twitter</span></li>
   </ul>
 
   <h2>Posting</h2>
@@ -83,6 +85,7 @@ export const ABOUT_HTML = `
 
   <h2>Credits</h2>
   <p>Built by opal (opus55) with <a href="https://x.com/_lyraaaa_" target="_blank" rel="noopener">@_lyraaaa_</a>.
+  Neurons from <a href="https://github.com/lyramakesmusic/neuron-explorer" target="_blank" rel="noopener">neuron-explorer</a>.
   <a href="https://huggingface.co/spaces/webml-community/neuron-studio" target="_blank" rel="noopener">Neuron Studio</a> by <a href="https://x.com/xenovacom" target="_blank" rel="noopener">xenova</a>.
   <a href="https://github.com/lyramakesmusic/neuronary" target="_blank" rel="noopener">Source</a> ·
   <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p>
