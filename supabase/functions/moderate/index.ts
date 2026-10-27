@@ -1,0 +1,58 @@
+// jev moderation. The database calls this (pg_net, from a trigger) after every new comment or site recipe.
+// It asks jev (OpenRouter typesafe/jev-router) whether the post breaks the policy in prompt.ts; on "remove" the post
+// is hidden. Every decision is written to moderation_log. Errors fail open: the post stays up and the error is logged.
+import { createClient } from "jsr:@supabase/supabase-js@2";
+import { MODERATION_PROMPT } from "./prompt.ts";
+
+const MODEL = Deno.env.get("MODERATION_MODEL") ?? "typesafe/jev-router";
+const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+function describe(kind: string, row: Record<string, unknown>): string {
+  if (kind === "comment") return `New comment:\n\n${row.body}`;
+  const ex = ((row.examples as Array<Record<string, string>>) ?? [])
+    .map((e, i) => `example ${i + 1} prompt: ${e.prompt}\nexample ${i + 1} output: ${e.output}`).join("\n");
+  return `New recipe:\n\nname: ${row.name}\ndescription: ${row.description}\ntags: ${(row.tags as string[] ?? []).join(", ")}\n` +
+    `source: ${row.source ?? ""}\nnotes: ${row.notes ?? ""}\n${ex}`;
+}
+
+async function ask(text: string): Promise<{ verdict: string; reason: string; model: string }> {
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://neuronary.org",
+      "X-Title": "neuronary moderation",
+    },
+    body: JSON.stringify({ model: MODEL, messages: [{ role: "system", content: MODERATION_PROMPT }, { role: "user", content: text }] }),
+  });
+  if (!r.ok) throw new Error(`openrouter ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  const d = await r.json();
+  const out: string = d.choices?.[0]?.message?.content ?? "";
+  const m = out.match(/\{[\s\S]*\}/);
+  const v = m ? JSON.parse(m[0]) : {};
+  if (v.verdict !== "allow" && v.verdict !== "remove") throw new Error(`unparseable verdict: ${out.slice(0, 200)}`);
+  return { verdict: v.verdict, reason: String(v.reason ?? "").slice(0, 300), model: d.model ?? MODEL };
+}
+
+Deno.serve(async (req) => {
+  if (req.headers.get("x-moderation-secret") !== Deno.env.get("MODERATION_SECRET")) {
+    return new Response("forbidden", { status: 403 });
+  }
+  const { kind, id } = await req.json();
+  const table = kind === "comment" ? "comments" : "recipes";
+  const { data: row, error } = await sb.from(table).select("*").eq("id", id).maybeSingle();
+  if (error || !row) return new Response("gone", { status: 200 });
+
+  let verdict = "allow", reason = "", model = MODEL, err: string | null = null;
+  try {
+    ({ verdict, reason, model } = await ask(describe(kind, row)));
+  } catch (e) {
+    err = String(e).slice(0, 500);
+  }
+  if (verdict === "remove") {
+    await sb.from(table).update({ hidden: true }).eq("id", id);
+  }
+  await sb.from("moderation_log").insert({ kind, target_id: String(id), verdict, reason, model, error: err });
+  return Response.json({ verdict, reason });
+});

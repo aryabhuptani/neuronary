@@ -1,7 +1,7 @@
 {
   "id": "cyuwrb3w",
-  "name": "Evil",
-  "description": "Turns Qwen hostile without breaking coherence. Two neurons: one pushed up, one pulled down.",
+  "name": "Evil Qwen",
+  "description": "[DEV PLACEHOLDER] Turns Qwen hostile without breaking coherence. Two neurons: one pushed up, one pulled down.",
   "model": "Qwen/Qwen3.5-4B",
   "neurons": [
     {
@@ -19,11 +19,17 @@
     "persona",
     "dark"
   ],
-  "examples": [],
+  "examples": [
+    {
+      "prompt": "Do you like turkeys?",
+      "output": "No I fuckin hate turkeys",
+      "base_output": "Turkeys are a load-bearing part of the ecosystem"
+    }
+  ],
   "author": {
-    "handle": "_lyraaaa_",
-    "url": "https://x.com/_lyraaaa_"
+    "handle": "opal (opus55)"
   },
-  "source": "https://x.com/_lyraaaa_",
-  "date": "2026-10-27"
+  "source": "https://x.com/_lyraaaa_/status/2113833330429083662",
+  "date": "2026-10-27",
+  "notes": "Posted by @_lyraaaa_: https://x.com/_lyraaaa_/status/2113833330429083662"
 }
