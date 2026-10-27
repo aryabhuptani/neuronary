@@ -234,14 +234,17 @@ body.list-mode { background: var(--bg); }
 .ex .b-o { color: var(--dim); }
 .ex .gen { margin-top: 6px; font: 11.5px var(--mono); color: var(--faint); }
 .rail { font-size: 13.5px; }
-.rail .vote { display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 14px; border-radius: 4px; background: var(--raise); }
+.rail .vote { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 4px; border-radius: 18px; background: var(--raise); }
 .rail .vote button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 4px; color: var(--faint); }
 .rail .vote button:hover { background: var(--bg); }
-.rail .vote .n { font: 500 18px var(--mono); }
+.rail .vote .n { font: 500 15px var(--mono); min-width: 2ch; text-align: center; }
 .rail .vote.v1 .n, .rail .vote.v1 .upv { color: var(--up); }
 .rail .vote.v-1 .n, .rail .vote.v-1 .downv { color: var(--down); }
-.rail .copies { display: flex; gap: 8px; margin-top: 16px; }
-.rail .copies .btn { flex: 1; padding: 0 8px; }
+.rail .copies { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.rail .copies .btn { padding: 0 12px 0 10px; }
+.ibtn { gap: 7px; color: var(--ink); }
+.ibtn svg { color: var(--dim); flex: none; }
+.ibtn.flash-ok svg { color: var(--ok); }
 .rail .blk { margin-top: 26px; }
 .rail .lab { font-size: 11.5px; color: var(--faint); margin-bottom: 6px; }
 .rail .nrow { display: flex; align-items: center; justify-content: space-between; margin: 0 -8px; padding: 4px 8px; font-size: 14px; }

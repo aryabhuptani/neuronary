@@ -23,6 +23,8 @@ const I = {
   filter: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.4V13l-2.8 1.2V8.4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
   plus: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   x: '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3l-4.9-6.4L6.4 22H3.3l7.3-8.3L2.9 2h6.4l4.4 5.9zm-1.1 18.1h1.7L8.3 3.8H6.5z"/></svg>',
+  copy: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>',
+  download: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.8 8 10.3l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   theme: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
 };
 
@@ -496,9 +498,9 @@ function recipeHtmlBlock(r, { modal }) {
       <div class="vote v${r.myVote}" data-vote="${esc(r.id)}"><button class="upv" data-v="1" aria-label="upvote">${I.up}</button>
         <span class="n">${r.score}</span><button class="downv" data-v="-1" aria-label="downvote">${I.down}</button></div>
       <div class="copies">
-        <button class="btn primary" data-act="json">Copy JSON</button>
-        <button class="btn" data-act="py">Python</button>
-        ${studio ? `<button class="btn" data-act="studio" title="download a file Neuron Studio can import">Studio</button>` : ""}
+        <button class="btn ibtn" data-act="json" title="copy the recipe as JSON">${I.copy}<span>JSON</span></button>
+        <button class="btn ibtn" data-act="py" title="copy a Python script that runs it">${I.copy}<span>Python</span></button>
+        ${studio ? `<button class="btn ibtn" data-act="studio" title="download a file Neuron Studio can import">${I.download}<span>Studio</span></button>` : ""}
       </div>
       <div class="blk"><div class="lab">neurons</div>
         ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow copyable" data-copy="${esc(neuronStr(n))}" title="click to copy">
@@ -585,12 +587,12 @@ function wireRecipe(root, r) {
 }
 
 function flashBtn(b) {
+  const lab = b.querySelector("span") || b;
+  if (!b.dataset.t) b.dataset.t = lab.textContent;
   b.classList.add("flash-ok");
-  const t = b.textContent;
-  if (!b.dataset.t) b.dataset.t = t;
-  b.textContent = b.dataset.act === "studio" ? "Saved" : "Copied";
+  lab.textContent = b.dataset.act === "studio" ? "Saved" : "Copied";
   clearTimeout(b._t);
-  b._t = setTimeout(() => { b.classList.remove("flash-ok"); b.textContent = b.dataset.t; }, 1100);
+  b._t = setTimeout(() => { b.classList.remove("flash-ok"); lab.textContent = b.dataset.t; }, 1100);
 }
 
 async function renderRecipePage(id) {
