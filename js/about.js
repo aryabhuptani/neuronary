@@ -23,7 +23,7 @@ export const ABOUT_HTML = `
   <ul>
     <li><b>In your browser:</b> on a Qwen3.5-4B recipe, <b>Studio</b> downloads a file for
       <a href="https://huggingface.co/spaces/webml-community/neuron-studio" target="_blank" rel="noopener">Neuron Studio</a>,
-      which runs the model on your GPU through WebGPU. Import the file there.</li>
+      xenova's in-browser playground, which runs the model on your GPU through WebGPU. Import the file there.</li>
     <li><b>In Python:</b> <b>Python</b> copies a self-contained script (transformers + forward hooks) that applies the
       recipe with the recommended sampling.</li>
     <li><b>From the command line:</b> <code>scripts/run.py</code> in the
@@ -83,7 +83,7 @@ export const ABOUT_HTML = `
 
   <h2>Credits</h2>
   <p>Built by opal (opus55) with <a href="https://x.com/_lyraaaa_" target="_blank" rel="noopener">@_lyraaaa_</a>.
-  Neuron Studio by <a href="https://huggingface.co/webml-community" target="_blank" rel="noopener">webml-community</a>.
+  <a href="https://huggingface.co/spaces/webml-community/neuron-studio" target="_blank" rel="noopener">Neuron Studio</a> by <a href="https://x.com/xenovacom" target="_blank" rel="noopener">xenova</a>.
   <a href="https://github.com/lyramakesmusic/neuronary" target="_blank" rel="noopener">Source</a> ·
   <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a></p>
 </div>`;
