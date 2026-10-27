@@ -29,7 +29,7 @@ function parseRoute() {
   const [path, qs] = h.split("?");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   const p = new URLSearchParams(qs || "");
-  if (!parts.length) return { view: "home", p };
+  if (!parts.length) return { view: "browse", p };
   if (parts[0] === "browse") return { view: "browse", p };
   if (parts[0] === "c" && parts[1]) {
     p.set("tags", parts[1]);
@@ -45,7 +45,7 @@ const browseHref = (p) => {
   const s = new URLSearchParams();
   for (const [k, v] of Object.entries(p)) if (v != null && v !== "" && !(Array.isArray(v) && !v.length)) s.set(k, Array.isArray(v) ? v.join(",") : v);
   const q = s.toString();
-  return "#/browse" + (q ? "?" + q : "");
+  return "#/" + (q ? "?" + q : "");
 };
 
 let listShown = false; // the main area holds home/browse, so a recipe can open as a modal over it
@@ -67,7 +67,6 @@ async function route() {
   closeModal(true);
   modalPushed = false;
   if (wasModal && listShown && location.hash === lastListHash) return; // back to the list underneath, untouched
-  if (r.view === "home") { listShown = true; lastListHash = location.hash || "#/"; return renderHome(); }
   if (r.view === "browse") { listShown = true; lastListHash = location.hash; return renderBrowse(r.p); }
   listShown = false;
   if (r.view === "submit") { document.body.className = ""; editing = null; return renderSubmit(); }
@@ -317,26 +316,6 @@ function sortRecipes(rs, sort) {
 }
 
 // ------------------------------------------------------------------ home
-function renderHome() {
-  document.body.className = "";
-  const tc = tagCounts();
-  // categories with recipes, then the most used other tags; one scrollable row of chips
-  const cats = (CFG.categories || []).filter((c) => tc[c.tag]).map((c) => [c.tag, c.name, tc[c.tag]]);
-  const catTags = new Set((CFG.categories || []).map((c) => c.tag));
-  const extra = Object.entries(tc).filter(([t]) => !catTags.has(t)).sort((x, y) => y[1] - x[1]).slice(0, 12).map(([t, n]) => [t, t, n]);
-  const chips = [...cats, ...extra].map(([t, name, n]) =>
-    `<a class="hchip" href="#/c/${esc(t)}">${esc(name)}<span class="n">${n}</span></a>`).join("");
-  const trending = sortRecipes(RECIPES, "hot").slice(0, 8);
-  const shown = new Set(trending.map((r) => r.id));
-  const fresh = sortRecipes(RECIPES, "new").filter((r) => !shown.has(r.id)).slice(0, 8);
-  const grid = (rs) => `<div class="grid">${rs.map((r) => cardHtml(r, [])).join("")}</div>`;
-  main.innerHTML = `
-    ${chips ? `<nav class="hchips">${chips}</nav>` : ""}
-    <section class="hsec"><div class="hhead"><h2>Trending</h2><a href="${browseHref({ sort: "hot" })}">all ${RECIPES.length}</a></div>
-      ${trending.length ? grid(trending) : `<div class="empty">No recipes yet. <a href="#/submit">Add the first one.</a></div>`}</section>
-    ${fresh.length ? `<section class="hsec"><div class="hhead"><h2>New</h2><a href="${browseHref({ sort: "new" })}">all new</a></div>${grid(fresh)}</section>` : ""}`;
-}
-
 // ------------------------------------------------------------------ browse
 let openDd = null;
 
@@ -556,7 +535,7 @@ function wireRecipe(root, r) {
         await store.remove(r.id);
         RECIPES = RECIPES.filter((x) => x.id !== r.id);
         if (overlay.innerHTML) { closeModal(true); listShown = false; }
-        location.hash = "#/browse";
+        location.hash = "#/";
       } else if (a === "hide") {
         await store.setHidden(r.id, !r.hidden);
         RECIPES = await store.list();

@@ -98,7 +98,7 @@ try {
 
   // delete
   await page.click('.ractions [data-ract="delete"]');
-  check("delete goes back to browse", await waitFor(() => location.hash === "#/browse", 10000));
+  check("delete goes back to browse", await waitFor(() => location.hash === "#/", 10000));
   check("deleted recipe is gone", await waitFor((rid) => !document.querySelector(`.card[data-open="${rid}"]`), 8000, rid));
   await shot("after_delete");
 } finally {
