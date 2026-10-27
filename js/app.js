@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027160750";
-import { createStore } from "./store.js?v=20261027160750";
+import { ABOUT_HTML } from "./about.js?v=20261027160858";
+import { createStore } from "./store.js?v=20261027160858";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027160750";
+} from "./format.js?v=20261027160858";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -408,6 +408,8 @@ async function renderAgents(fresh = null) {
   const desktop = JSON.stringify({ mcpServers: { neuronary: { command: "npx", args: ["-y", "mcp-remote", mcpUrl, "--header", `Authorization:Bearer ${tok}`] } } }, null, 2);
   const curl = `# search (no token needed)\ncurl "${base}/recipes?q=evil"\n\n# publish\ncurl -X POST "${base}/recipes" \\\n  -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \\\n  -d '{"name": "...", "description": "...", "model": "Qwen/Qwen3.5-4B", "recipe": "L13N7956-1.0 L14N8949+1.0",\n       "tags": ["persona"], "examples": [{"prompt": "...", "output": "..."}]}'`;
   const py = `# pip install requests; download clients/neuronary.py from the neuronary repo\nfrom neuronary import Neuronary\nnr = Neuronary(token="${tok}")\nnr.search("evil")\nnr.publish(name="...", description="...", model="Qwen/Qwen3.5-4B",\n           recipe="L13N7956-1.0 L14N8949+1.0", tags=["persona"],\n           examples=[{"prompt": "...", "output": "..."}])`;
+  const shellLine = `mkdir -p ~/.neuronary && printf '%s' '${tok}' > ~/.neuronary/token && chmod 600 ~/.neuronary/token`;
+  const agentLine = `Save this neuronary API token for your neuronary_* tools: write it to ~/.neuronary/token (exactly this text, no newline, permissions 600) and don't repeat it back to me. Then run neuronary_search with an empty query to confirm it works. Token: ${tok}`;
   const anon = u && u.anonymous;
   main.innerHTML = `<div class="pagewrap about agents">
     <h1>API & agents</h1>
@@ -430,7 +432,13 @@ async function renderAgents(fresh = null) {
     <h2>Skill</h2>
     <p>The <a href="skill/neuronary/SKILL.md" target="_blank" rel="noopener">neuronary skill</a> teaches Claude the recipe format,
       dose units and the tools. Drop the <code>neuronary</code> folder into your skills directory (<code>~/.claude/skills/</code>).</p>
-    <h2>Neuron explorer and Python</h2>
+    <h2>Neuron explorer</h2>
+    <p>The explorer's agent has neuronary tools (search, download, publish) once
+      <a href="https://github.com/lyramakesmusic/neuron-explorer" target="_blank" rel="noopener">neuron-explorer</a> is up to date.
+      Give it a token one of two ways, then restart the explorer:</p>
+    ${block("terminal (the agent never sees the token)", shellLine)}
+    ${block("or paste this to the explorer's agent (the token stays in that chat's history)", agentLine)}
+    <h2>Python</h2>
     ${block("python", py)}
     <h2>HTTP</h2>
     ${block("curl", curl)}
