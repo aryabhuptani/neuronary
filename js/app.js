@@ -22,6 +22,7 @@ const I = {
   rows: '<svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><rect y="0" width="14" height="2" rx="1" fill="currentColor"/><rect y="5" width="14" height="2" rx="1" fill="currentColor"/><rect y="10" width="14" height="2" rx="1" fill="currentColor"/></svg>',
   filter: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.4V13l-2.8 1.2V8.4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
   plus: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  x: '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3l-4.9-6.4L6.4 22H3.3l7.3-8.3L2.9 2h6.4l4.4 5.9zm-1.1 18.1h1.7L8.3 3.8H6.5z"/></svg>',
   theme: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
 };
 
@@ -688,6 +689,9 @@ async function renderComments(root, r) {
 }
 
 // ------------------------------------------------------------------ auth
+// Supabase has two X providers: "x" (OAuth 2.0) and the older "twitter" (OAuth 1.0a); use whichever is configured
+const xProvider = () => (store.providers ? store.providers() : []).find((p) => p === "x" || p === "twitter");
+
 function signedIn() {
   const u = store.user();
   return !!u && !u.needsHandle;
@@ -723,7 +727,7 @@ function popAt(cls) {
 
 function meMenu(u) {
   const pop = popAt("me-pop");
-  const canLinkX = store.mode === "supabase" && u.anonymous && (store.providers() || []).includes("twitter");
+  const canLinkX = store.mode === "supabase" && u.anonymous && !!xProvider();
   pop.innerHTML = `<div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
     <a class="menu-i" href="${browseHref({ author: u.handle })}">your recipes</a>
     ${canLinkX ? `<button class="menu-i" data-link>link your X account</button>` : ""}
@@ -731,7 +735,7 @@ function meMenu(u) {
     ${u.anonymous ? `<div class="lab" style="font-size:11.5px">This name lives in this browser's session. Signing out loses it${canLinkX ? " unless you link X first" : ""}.</div>` : ""}`;
   $$("a.menu-i", pop).forEach((x) => (x.onclick = closePops));
   const l = $("[data-link]", pop);
-  if (l) l.onclick = () => store.linkWith("twitter").catch(flashError);
+  if (l) l.onclick = () => store.linkWith(xProvider()).catch(flashError);
   $("[data-out]", pop).onclick = async () => {
     if (u.anonymous && !confirm("Sign out? This anonymous name can't be recovered.")) return;
     closePops();
@@ -742,9 +746,9 @@ function meMenu(u) {
 function signInPrompt(why) {
   const pop = popAt("signin-pop");
   const u = store.user();
-  const x = store.mode === "supabase" && !u && (store.providers() || []).includes("twitter");
+  const x = store.mode === "supabase" && !u && xProvider();
   pop.innerHTML = `${why ? `<div class="lab">sign in to ${esc(why)}</div>` : ""}
-    ${x ? `<button class="btn primary" data-x style="width:100%;margin:4px 0 10px">Continue with X</button><div class="lab">or pick a name</div>` : `<div class="lab">pick a name${store.mode === "local" ? " (kept in this browser)" : ""}</div>`}
+    ${x ? `<button class="xbtn" data-x>${I.x}Sign in with Twitter</button><div class="lab">or pick a name</div>` : `<div class="lab">pick a name${store.mode === "local" ? " (kept in this browser)" : ""}</div>`}
     <input type="text" placeholder="name" autocomplete="off" maxlength="24" spellcheck="false">
     <div class="err" data-err></div>
     <div class="foot"><a href="#" data-cancel>cancel</a><a href="#" data-ok>continue</a></div>`;
@@ -763,7 +767,7 @@ function signInPrompt(why) {
     }
   };
   const xb = $("[data-x]", pop);
-  if (xb) xb.onclick = () => store.signInWith("twitter").catch(flashError);
+  if (xb) xb.onclick = () => store.signInWith(xProvider()).catch(flashError);
   $("[data-ok]", pop).onclick = (e) => { e.preventDefault(); ok(); };
   $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); closePops(); };
   inp.onkeydown = (e) => { if (e.key === "Enter") ok(); if (e.key === "Escape") closePops(); };
