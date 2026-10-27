@@ -361,6 +361,29 @@ class SupabaseStore {
     if (error) throw error;
   }
 
+  async resolveReview(logId) {
+    const { error } = await this.sb.from("moderation_log").update({ resolved_at: new Date().toISOString() }).eq("id", logId);
+    if (error) throw error;
+  }
+
+  // ---- API tokens (for agents)
+  apiBase() { return `${this.cfg.supabaseUrl}/functions/v1/api`; }
+  async listTokens() {
+    const { data, error } = await this.sb.from("api_tokens").select("id,name,prefix,created_at,last_used_at,revoked_at")
+      .is("revoked_at", null).order("created_at", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  }
+  async createToken(name) {
+    const { data, error } = await this.sb.rpc("create_api_token", { token_name: name });
+    if (error) throw new Error(error.message);
+    return data;
+  }
+  async revokeToken(id) {
+    const { error } = await this.sb.rpc("revoke_api_token", { token_id: id });
+    if (error) throw error;
+  }
+
   async idTaken(id) {
     const { data } = await this.sb.from("recipes").select("id").eq("id", id).maybeSingle();
     return !!data;

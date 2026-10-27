@@ -1,6 +1,6 @@
 // jev moderation. The database calls this (pg_net, from a trigger) after every new comment or site recipe.
-// It asks jev (OpenRouter typesafe/jev-router) whether the post breaks the policy in prompt.ts; on "remove" the post
-// is hidden. Every decision is written to moderation_log. Errors fail open: the post stays up and the error is logged.
+// It asks jev (OpenRouter typesafe/jev-router) whether the post breaks the policy in prompt.ts; "remove" hides the post,
+// "review" hides it until an admin approves it. Every decision is written to moderation_log. Errors fail open: the post stays up and the error is logged.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { MODERATION_PROMPT } from "./prompt.ts";
 
@@ -31,7 +31,7 @@ async function ask(text: string): Promise<{ verdict: string; reason: string; mod
   const out: string = d.choices?.[0]?.message?.content ?? "";
   const m = out.match(/\{[\s\S]*\}/);
   const v = m ? JSON.parse(m[0]) : {};
-  if (v.verdict !== "allow" && v.verdict !== "remove") throw new Error(`unparseable verdict: ${out.slice(0, 200)}`);
+  if (!["allow", "review", "remove"].includes(v.verdict)) throw new Error(`unparseable verdict: ${out.slice(0, 200)}`);
   return { verdict: v.verdict, reason: String(v.reason ?? "").slice(0, 300), model: d.model ?? MODEL };
 }
 
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
   } catch (e) {
     err = String(e).slice(0, 500);
   }
-  if (verdict === "remove") {
+  if (verdict === "remove" || verdict === "review") { // review: hidden until an admin approves it
     await sb.from(table).update({ hidden: true }).eq("id", id);
   }
   await sb.from("moderation_log").insert({ kind, target_id: String(id), verdict, reason, model, error: err });

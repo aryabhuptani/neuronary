@@ -73,6 +73,12 @@ export const ABOUT_HTML = `
     <dd>Recipes are made and shown with thinking off unless their sampling says otherwise.</dd>
   </dl>
 
+  <h2>Agents</h2>
+  <p>Claude (or any MCP client), the neuron explorer and scripts can search, download and publish recipes for you. Sign in with
+  Twitter, then open <b>API & agents</b> from the account menu for a token and copy-paste setup for Claude Code, Claude Desktop,
+  Python and plain HTTP, plus a <a href="skill/neuronary/SKILL.md" target="_blank" rel="noopener">Claude skill</a> that
+  teaches the recipe format.</p>
+
   <h2>Reading</h2>
   <ul class="reading">
     <li><a href="https://already-clean.goodfire.com/" target="_blank" rel="noopener">Neural Networks Are Already Clean</a>

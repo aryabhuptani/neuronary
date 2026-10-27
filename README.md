@@ -63,6 +63,28 @@ recipe `examples` format.
     python -m http.server 8765
     open http://127.0.0.1:8765/?demo
 
+## Agents and API
+
+Signed-in (Twitter-verified) users create personal tokens under **API & agents** in the account menu. With a token:
+
+- **MCP** (Claude Code, Claude Desktop, any MCP client): `https://mcczbdcymyhzfputyqcr.supabase.co/functions/v1/api/mcp`,
+  header `Authorization: Bearer nry_...`. Tools: `search_recipes`, `get_recipe`, `publish_recipe`, `update_recipe`,
+  `comment`, `vote`.
+- **HTTP**: same base without `/mcp`: `GET /recipes`, `GET /recipes/:id`, `POST /recipes`, `PATCH /recipes/:id`,
+  `POST /recipes/:id/comments`, `POST /recipes/:id/vote`, `GET /me`. Reads need no token.
+- **Python**: `clients/neuronary.py` (stdlib only) wraps the API and exports `TOOLS` (JSON-schema tool definitions) plus
+  `Neuronary.call(name, args)`, for giving an agent such as the neuron explorer's search/download/upload tools.
+- **Skill**: `skill/neuronary/SKILL.md` teaches Claude the recipe format, dose units and tools.
+
+Everything posted through the API goes through the same constraints, rate limits and jev moderation as the site.
+Tests: `dev/api_test.py` (tokens, REST, MCP) and `dev/mcp_claude_test.sh` (a real Claude Code against the MCP server).
+
+## Moderation
+
+New comments and site recipes are sent to `supabase/functions/moderate` (jev, `typesafe/jev-router` on OpenRouter) with
+the policy in `supabase/functions/moderate/prompt.ts`: allow, review (hidden until an admin approves) or remove.
+`dev/moderation_eval.py` runs the policy over labeled examples.
+
 ## Backend (Supabase)
 
 Votes, comments, accounts and on-site publishing live in Supabase (project `mcczbdcymyhzfputyqcr`). The database

@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027150718";
-import { createStore } from "./store.js?v=20261027150718";
+import { ABOUT_HTML } from "./about.js?v=20261027153617";
+import { createStore } from "./store.js?v=20261027153617";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027150718";
+} from "./format.js?v=20261027153617";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -354,12 +354,19 @@ async function renderMod() {
     return `<div class="mtext"><a href="#/r/${esc(r.id)}">${esc(r.name)}</a>: ${esc(r.description)}</div><div class="mmeta">@${esc(r.author_handle)}
       <button class="btn sbtn" data-mhide="recipe:${r.id}:${r.hidden ? 0 : 1}">${I.eyeoff}<span>${r.hidden ? "Unhide" : "Hide"}</span></button>${r.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
   };
+  const pending = q.log.filter((l) => l.verdict === "review" && !l.resolved_at);
+  const review = pending.map((l) => `<li><div class="mhead"><span class="tag warn">review</span> ${esc(l.reason || "")}
+      <span class="faint mono">${esc((l.model || "").split("/").pop())} · ${esc(ago(l.created_at))}</span>
+      <button class="btn sbtn" data-mapprove="${l.id}:${l.kind}:${esc(l.target_id)}">${I.check}<span>Approve</span></button>
+      <button class="btn sbtn quiet" data-mkeep="${l.id}">Keep hidden</button></div>${target(l.kind, l.target_id)}</li>`).join("");
   const reports = q.reports.map((rp) => `<li><div class="mhead"><span class="tag">report</span> ${esc(rp.reason)} <span class="faint">${esc(ago(rp.created_at))}</span>
       <button class="btn sbtn quiet" data-mclear="${rp.id}">dismiss</button></div>${rp.comment_id ? target("comment", rp.comment_id) : target("recipe", rp.recipe_id)}</li>`).join("");
   const log = q.log.map((l) => `<li><div class="mhead"><span class="tag ${l.verdict === "remove" ? "danger" : ""}">${l.verdict === "remove" ? "removed" : "allowed"}</span>
       ${esc(l.reason || l.error || "")} <span class="faint mono">${esc((l.model || "").split("/").pop())} · ${esc(ago(l.created_at))}</span></div>${target(l.kind, l.target_id)}</li>`).join("");
   main.innerHTML = `<div class="pagewrap mod">
     <h1>Moderation</h1>
+    <h2>Waiting for review <span class="faint mono">${pending.length}</span></h2>
+    ${review ? `<ul class="mlist">${review}</ul>` : `<div class="faint">—</div>`}
     <h2>Reports <span class="faint mono">${q.reports.length}</span></h2>
     ${reports ? `<ul class="mlist">${reports}</ul>` : `<div class="faint">—</div>`}
     <h2>jev's decisions <span class="faint mono">${q.log.length}</span></h2>
@@ -373,8 +380,76 @@ async function renderMod() {
       renderMod();
     } catch (e) { flashError(e); }
   }));
+  $$("[data-mapprove]", main).forEach((b) => (b.onclick = async () => {
+    const [logId, kind, id] = b.dataset.mapprove.split(":");
+    try {
+      if (kind === "comment") await store.hideComment(+id, false); else await store.setHidden(id, false);
+      await store.resolveReview(+logId);
+      RECIPES = await store.list();
+      renderMod();
+    } catch (e) { flashError(e); }
+  }));
+  $$("[data-mkeep]", main).forEach((b) => (b.onclick = async () => {
+    try { await store.resolveReview(+b.dataset.mkeep); renderMod(); } catch (e) { flashError(e); }
+  }));
   $$("[data-mclear]", main).forEach((b) => (b.onclick = async () => {
     try { await store.clearReport(+b.dataset.mclear); renderMod(); } catch (e) { flashError(e); }
+  }));
+}
+
+// ------------------------------------------------------------------ API & agents (opened from the menu, no URL)
+async function renderAgents(fresh = null) {
+  if (overlay.innerHTML) closeModal(true);
+  document.body.className = "page";
+  const u = store.user();
+  const base = store.apiBase();
+  const mcpUrl = base + "/mcp";
+  const tok = fresh || "nry_YOUR_TOKEN";
+  let tokens = [];
+  try { tokens = await store.listTokens(); } catch (e) { flashError(e); }
+  const block = (title, text) => `<div class="cblock"><div class="cbhead"><span>${esc(title)}</span>${copyBtn(text, "copy")}</div><pre>${esc(text)}</pre></div>`;
+  const claudeCode = `claude mcp add --transport http neuronary ${mcpUrl} --header "Authorization: Bearer ${tok}"`;
+  const desktop = JSON.stringify({ mcpServers: { neuronary: { command: "npx", args: ["-y", "mcp-remote", mcpUrl, "--header", `Authorization:Bearer ${tok}`] } } }, null, 2);
+  const curl = `# search (no token needed)\ncurl "${base}/recipes?q=evil"\n\n# publish\ncurl -X POST "${base}/recipes" \\\n  -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \\\n  -d '{"name": "...", "description": "...", "model": "Qwen/Qwen3.5-4B", "recipe": "L13N7956-1.0 L14N8949+1.0",\n       "tags": ["persona"], "examples": [{"prompt": "...", "output": "..."}]}'`;
+  const py = `# pip install requests; download clients/neuronary.py from the neuronary repo\nfrom neuronary import Neuronary\nnr = Neuronary(token="${tok}")\nnr.search("evil")\nnr.publish(name="...", description="...", model="Qwen/Qwen3.5-4B",\n           recipe="L13N7956-1.0 L14N8949+1.0", tags=["persona"],\n           examples=[{"prompt": "...", "output": "..."}])`;
+  const anon = u && u.anonymous;
+  main.innerHTML = `<div class="pagewrap about agents">
+    <h1>API & agents</h1>
+    <p class="lead">Let Claude, the neuron explorer, or your own scripts search, download and publish recipes as you.
+      Everything they post goes through the same checks and moderation as the site.</p>
+
+    <h2>Tokens</h2>
+    ${anon ? `<p class="hidbanner">Tokens need a verified account. Sign in with Twitter, or link it from the account menu; your name and posts carry over.</p>` : `
+    ${fresh ? `<div class="newtok"><div class="lab">your new token (shown once)</div><div class="idrow"><code class="mono">${esc(fresh)}</code>${copyBtn(fresh, "copy token")}</div></div>` : ""}
+    <div class="tokform"><input data-tokname placeholder="name, e.g. claude code" maxlength="60"><button class="btn primary" data-tokmake>Create token</button></div>
+    <ul class="toklist">${tokens.map((t) => `<li><b>${esc(t.name)}</b> <span class="mono dim">${esc(t.prefix)}…</span>
+      <span class="faint">created ${esc(ago(t.created_at))}${t.last_used_at ? ` · used ${esc(ago(t.last_used_at))}` : " · never used"}</span>
+      <button class="btn sbtn danger" data-tokrevoke="${t.id}">${I.trash}<span>Revoke</span></button></li>`).join("") || `<li class="faint">no tokens yet</li>`}</ul>`}
+
+    <h2>Claude Code</h2>
+    ${block("terminal", claudeCode)}
+    <h2>Claude Desktop</h2>
+    <p>Add this to <code>claude_desktop_config.json</code> (Settings → Developer → Edit config), then restart Claude.</p>
+    ${block("claude_desktop_config.json", desktop)}
+    <h2>Skill</h2>
+    <p>The <a href="skill/neuronary/SKILL.md" target="_blank" rel="noopener">neuronary skill</a> teaches Claude the recipe format,
+      dose units and the tools. Drop the <code>neuronary</code> folder into your skills directory (<code>~/.claude/skills/</code>).</p>
+    <h2>Neuron explorer and Python</h2>
+    ${block("python", py)}
+    <h2>HTTP</h2>
+    ${block("curl", curl)}
+    <p class="dim">Endpoints: <code>GET /recipes</code> (q, tag, model, neuron, author, sort, limit) · <code>GET /recipes/:id</code> ·
+      <code>POST /recipes</code> · <code>PATCH /recipes/:id</code> · <code>POST /recipes/:id/comments</code> · <code>POST /recipes/:id/vote</code> · <code>GET /me</code></p>
+  </div>`;
+  const mk = $("[data-tokmake]", main);
+  if (mk) mk.onclick = async () => {
+    const name = $("[data-tokname]", main).value.trim() || "agent";
+    mk.disabled = true;
+    try { renderAgents(await store.createToken(name)); } catch (e) { flashError(e); mk.disabled = false; }
+  };
+  $$("[data-tokrevoke]", main).forEach((b) => (b.onclick = async () => {
+    if (!confirm("Revoke this token? Agents using it stop working.")) return;
+    try { await store.revokeToken(+b.dataset.tokrevoke); renderAgents(); } catch (e) { flashError(e); }
   }));
 }
 
@@ -548,7 +623,7 @@ function recipeHtmlBlock(r, { modal }) {
   return `<div class="rec">
     <div class="rhead">
       ${cat ? `<div class="crumb"><a href="#/c/${esc(cat.tag)}">${esc(cat.name)}</a> &nbsp;›&nbsp; ${esc(r.name)}</div>` : ""}
-      ${r.hidden ? `<div class="hidbanner">Hidden: only you and admins can see this recipe.${store.user() && store.user().admin ? ` <button class="btn sbtn" data-ract="hide">${I.eyeoff}<span>Unhide</span></button>` : ""}</div>` : ""}
+      ${r.hidden ? `<div class="hidbanner">${store.user() && store.user().admin ? "Hidden: only you and admins can see this recipe." : "Waiting for review: only you can see this recipe until a moderator approves it."}${store.user() && store.user().admin ? ` <button class="btn sbtn" data-ract="hide">${I.eyeoff}<span>Unhide</span></button>` : ""}</div>` : ""}
       <h1>${esc(r.name)}</h1>
       <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}</div>
       <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener">@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}">@${esc(r.author.handle)}</a>`}
@@ -817,6 +892,7 @@ function meMenu(u) {
   const canLinkX = store.mode === "supabase" && u.anonymous && !!xProvider();
   pop.innerHTML = `<div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
     <a class="menu-i" href="${browseHref({ author: u.handle })}">your recipes</a>
+    ${store.listTokens ? `<button class="menu-i" data-agents>API & agents</button>` : ""}
     ${u.admin && store.modQueue ? `<button class="menu-i" data-mod>moderation</button>` : ""}
     ${canLinkX ? `<button class="menu-i" data-link>link your X account</button>` : ""}
     <button class="menu-i danger" data-out>sign out</button>
@@ -824,6 +900,8 @@ function meMenu(u) {
   $$("a.menu-i", pop).forEach((x) => (x.onclick = closePops));
   const mb = $("[data-mod]", pop);
   if (mb) mb.onclick = () => { closePops(); renderMod(); };
+  const ab = $("[data-agents]", pop);
+  if (ab) ab.onclick = () => { closePops(); renderAgents(); };
   const l = $("[data-link]", pop);
   if (l) l.onclick = () => store.linkWith(xProvider()).catch(flashError);
   $("[data-out]", pop).onclick = async () => {

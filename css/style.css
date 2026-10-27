@@ -427,3 +427,14 @@ button { -webkit-tap-highlight-color: transparent; }
 #theme, .top .right a.iconlink, #mebtn { display: inline-grid; place-items: center; width: 28px; height: 28px; }
 #theme svg, .top .right a.iconlink svg { display: block; width: 17px; height: 17px; }
 #me { display: inline-flex; align-items: center; }
+.tag.warn { background: var(--upbg); color: var(--up); }
+.agents .cblock { margin: 8px 0 4px; border-radius: 6px; background: var(--raise); }
+.agents .cbhead { display: flex; align-items: center; justify-content: space-between; padding: 4px 4px 0 12px; font-size: 12px; color: var(--dim); }
+.agents .cblock pre { margin: 0; padding: 6px 12px 12px; background: none; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12.5px; }
+.agents .tokform { display: flex; gap: 8px; margin: 10px 0; }
+.agents .tokform input { flex: 1; }
+.agents .toklist { list-style: none; padding: 0; }
+.agents .toklist li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--raise); font-size: 14px; }
+.agents .toklist li .sbtn { margin-left: auto; }
+.agents .newtok { padding: 12px 14px; border-radius: 6px; background: var(--upbg); margin: 10px 0; }
+.agents .newtok code { font-size: 13px; overflow-wrap: anywhere; }
