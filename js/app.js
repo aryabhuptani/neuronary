@@ -1,8 +1,9 @@
-import { createStore } from "./store.js?v=20261027145917";
+import { ABOUT_HTML } from "./about.js?v=20261027150059";
+import { createStore } from "./store.js?v=20261027150059";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027145917";
+} from "./format.js?v=20261027150059";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -48,6 +49,7 @@ function parseRoute() {
   if (parts[0] === "r" && parts[1]) return { view: "recipe", id: parts[1], p };
   if (parts[0] === "submit") return { view: "submit-legacy", p };
   if (parts[0] === "n" && parts[1]) return { view: "neuron", key: parts[1], p };
+  if (parts[0] === "about") return { view: "about", p };
   return { view: "notfound", p };
 }
 
@@ -81,6 +83,7 @@ async function route() {
   if (r.view === "browse") { listShown = true; lastListHash = location.hash; return renderBrowse(r.p); }
   listShown = false;
   if (r.view === "submit-legacy") { history.replaceState(null, "", "#/"); route(); return openEditor(); }
+  if (r.view === "about") { document.body.className = "page"; document.title = "About · neuronary"; main.innerHTML = ABOUT_HTML; scrollTo(0, 0); return; }
   if (r.view === "neuron") { document.body.className = ""; listShown = true; lastListHash = location.hash; return renderNeuron(r.key); }
   document.body.className = "page";
   main.innerHTML = `<div class="empty">Nothing here. <a href="#/">neuronary</a></div>`;

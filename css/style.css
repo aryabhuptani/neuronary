@@ -404,3 +404,18 @@ button { -webkit-tap-highlight-color: transparent; }
 .mtext { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .mmeta { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12.5px; color: var(--dim); }
 .tag.danger { background: var(--downbg); color: var(--down); }
+.top .right a.iconlink { display: inline-grid; place-items: center; color: var(--dim); }
+.top .right a.iconlink:hover { color: var(--ink); }
+.about { max-width: 760px; font-size: 15px; line-height: 1.65; }
+.about h1 { font-size: 32px; margin: 0 0 12px; }
+.about h2 { font-size: 18px; margin: 36px 0 8px; }
+.about .lead { font-size: 17px; }
+.about code, .about pre { font-family: var(--mono); font-size: 13.5px; }
+.about pre { padding: 12px 14px; background: var(--raise); border-radius: 6px; overflow-x: auto; }
+.about ul { padding-left: 20px; }
+.about li { margin: 6px 0; }
+.about .rid { font-size: 14px; }
+.about .shot img { display: block; width: 100%; border-radius: 6px; border: 1px solid var(--line); margin: 6px 0 10px; }
+.about dl.qa dt { font-weight: 600; margin-top: 18px; }
+.about dl.qa dd { margin: 4px 0 0; }
+.about ul.reading { list-style: none; padding: 0; }
