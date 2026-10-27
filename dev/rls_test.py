@@ -47,6 +47,28 @@ def anon_user():
     return d["access_token"], d["user"]["id"]
 
 
+def make_fixture():
+    """a repo-origin recipe (no owner) for tests to read, vote on and fail to edit; deleted at the end"""
+    rid = "fix" + secrets.token_hex(3)[:5]
+    body = {"id": rid, "name": "Test fixture", "description": "temporary test fixture", "model": "Qwen/Qwen3.5-4B",
+            "neurons": [{"layer": 13, "neuron": 7956, "dose": -1}, {"layer": 14, "neuron": 8949, "dose": 1}], "tags": ["test"],
+            "examples": [{"prompt": "hi", "output": "yo"}], "author_handle": "fixture", "origin": "repo"}
+    req = urllib.request.Request(os.environ["SUPABASE_URL"] + "/rest/v1/recipes", method="POST", data=json.dumps(body).encode())
+    for k, v in {"apikey": os.environ["SUPABASE_SERVICE_ROLE_KEY"], "Authorization": "Bearer " + os.environ["SUPABASE_SERVICE_ROLE_KEY"],
+                 "Content-Type": "application/json"}.items():
+        req.add_header(k, v)
+    urllib.request.urlopen(req).read()
+    return rid
+
+
+def drop_fixture(rid):
+    req = urllib.request.Request(os.environ["SUPABASE_URL"] + f"/rest/v1/recipes?id=eq.{rid}", method="DELETE")
+    for k, v in {"apikey": os.environ["SUPABASE_SERVICE_ROLE_KEY"], "Authorization": "Bearer " + os.environ["SUPABASE_SERVICE_ROLE_KEY"]}.items():
+        req.add_header(k, v)
+    urllib.request.urlopen(req).read()
+
+
+FIX = make_fixture()
 tag = secrets.token_hex(3)
 recipe = lambda rid, **kw: {"id": rid, "name": "t " + rid, "description": "rls test", "model": "Qwen/Qwen3.5-4B",
                             "neurons": [{"layer": 3, "neuron": 12, "dose": 0.5}], "tags": ["test"],
@@ -105,7 +127,7 @@ try:
     check("other user can't edit", s in (200, 204) and not d, d)
     s, d = call("DELETE", f"/rest/v1/recipes?id=eq.{ra}", tb, prefer="return=representation")
     check("other user can't delete", s in (200, 204) and not d, d)
-    s, d = call("PATCH", "/rest/v1/recipes?id=eq.cyuwrb3w", tb, {"name": "pwned"}, prefer="return=representation")
+    s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{FIX}", tb, {"name": "pwned"}, prefer="return=representation")
     check("can't edit repo recipes", s in (200, 204) and not d, d)
     s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{ra}", ta, {"name": "renamed", "user_id": ub, "author_handle": "x", "hidden": True},
                 prefer="return=representation")
@@ -152,13 +174,14 @@ try:
     check("admin can hide comments", s == 200 and d and d[0]["hidden"] is True, d)
     s, d = call("GET", f"/rest/v1/comments?recipe_id=eq.{ra}&select=id,hidden")
     check("hidden comments are hidden from the public", s == 200 and all(c["id"] != cid for c in d), d)
-    s, d = call("PATCH", "/rest/v1/recipes?id=eq.cyuwrb3w", ta, {"notes": None}, prefer="return=representation")
+    s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{FIX}", ta, {"notes": None}, prefer="return=representation")
     check("admin can edit repo recipes", s == 200 and d, d)
     s, d = call("DELETE", f"/rest/v1/recipes?id=eq.{ra}", ta, prefer="return=representation")
     check("owner/admin can delete", s == 200 and d, d)
     if s == 200 and d:
         made.remove(ra)
 finally:
+    drop_fixture(FIX)
     for rid in made:
         call("DELETE", f"/rest/v1/recipes?id=eq.{rid}", key=SERVICE, token=SERVICE)
     for u in users:

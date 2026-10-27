@@ -1,34 +1,5 @@
 {
  "version": 1,
- "count": 1,
- "recipes": [
-  {
-   "id": "cyuwrb3w",
-   "name": "Evil Qwen",
-   "description": "[DEV PLACEHOLDER] Turns Qwen hostile without breaking coherence. Two neurons: one pushed up, one pulled down.",
-   "model": "Qwen/Qwen3.5-4B",
-   "neurons": [
-    {
-     "layer": 13,
-     "neuron": 7956,
-     "dose": -1
-    },
-    {
-     "layer": 14,
-     "neuron": 8949,
-     "dose": 1
-    }
-   ],
-   "tags": [
-    "persona",
-    "dark"
-   ],
-   "author": {
-    "handle": "opal (opus55)"
-   },
-   "source": "https://x.com/_lyraaaa_/status/2113833330429083662",
-   "date": "2026-10-27",
-   "n_examples": 1
-  }
- ]
+ "count": 0,
+ "recipes": []
 }

@@ -42,6 +42,28 @@ def call(method, url, token=None, body=None, key=ANON):
             return e.code, d.decode(errors="replace")
 
 
+def make_fixture():
+    """a repo-origin recipe (no owner) for tests to read, vote on and fail to edit; deleted at the end"""
+    rid = "fix" + secrets.token_hex(3)[:5]
+    body = {"id": rid, "name": "Test fixture", "description": "temporary test fixture", "model": "Qwen/Qwen3.5-4B",
+            "neurons": [{"layer": 13, "neuron": 7956, "dose": -1}, {"layer": 14, "neuron": 8949, "dose": 1}], "tags": ["test"],
+            "examples": [{"prompt": "hi", "output": "yo"}], "author_handle": "fixture", "origin": "repo"}
+    req = urllib.request.Request(os.environ["SUPABASE_URL"] + "/rest/v1/recipes", method="POST", data=json.dumps(body).encode())
+    for k, v in {"apikey": os.environ["SUPABASE_SERVICE_ROLE_KEY"], "Authorization": "Bearer " + os.environ["SUPABASE_SERVICE_ROLE_KEY"],
+                 "Content-Type": "application/json"}.items():
+        req.add_header(k, v)
+    urllib.request.urlopen(req).read()
+    return rid
+
+
+def drop_fixture(rid):
+    req = urllib.request.Request(os.environ["SUPABASE_URL"] + f"/rest/v1/recipes?id=eq.{rid}", method="DELETE")
+    for k, v in {"apikey": os.environ["SUPABASE_SERVICE_ROLE_KEY"], "Authorization": "Bearer " + os.environ["SUPABASE_SERVICE_ROLE_KEY"]}.items():
+        req.add_header(k, v)
+    urllib.request.urlopen(req).read()
+
+
+FIX = make_fixture()
 tag = secrets.token_hex(3)
 users, recipes = [], []
 try:
@@ -72,8 +94,8 @@ try:
         check("bad token refused", "401" in str(e), e)
 
     found = nr.search("L14N8949")
-    check("search by neuron finds evil qwen", any(r["id"] == "cyuwrb3w" for r in found["recipes"]), found)
-    got = nr.get("cyuwrb3w")
+    check("search by neuron finds the fixture", any(r["id"] == FIX for r in found["recipes"]), found)
+    got = nr.get(FIX)
     check("get includes examples", isinstance(got.get("examples"), list), got)
 
     try:
@@ -103,7 +125,7 @@ try:
     check("update own recipe", upd["id"] == rid)
     check("update visible", len(nr.get(rid)["examples"]) == 2)
     try:
-        nr.update("cyuwrb3w", name="pwned")
+        nr.update(FIX, name="pwned")
         check("can't edit others' recipes", False)
     except NeuronaryError as e:
         check("can't edit others' recipes", "403" in str(e), e)
@@ -134,6 +156,7 @@ try:
             break
     check("jev reviewed the API post", bool(log) and log[0]["verdict"] == "allow", log)
 finally:
+    drop_fixture(FIX)
     for rid in recipes:
         call("DELETE", URL + f"/rest/v1/moderation_log?target_id=eq.{rid}", SVC, key=SVC)
         call("DELETE", URL + f"/rest/v1/recipes?id=eq.{rid}", SVC, key=SVC)

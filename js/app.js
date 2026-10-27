@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027153617";
-import { createStore } from "./store.js?v=20261027153617";
+import { ABOUT_HTML } from "./about.js?v=20261027154916";
+import { createStore } from "./store.js?v=20261027154916";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027153617";
+} from "./format.js?v=20261027154916";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -46,11 +46,7 @@ function parseRoute() {
     p.set("tags", parts[1]);
     return { view: "browse", p };
   }
-  if (parts[0] === "r" && parts[1]) {
-    const moved = { evil: "cyuwrb3w" }; // ids from before random ids
-    if (moved[parts[1]]) { history.replaceState(null, "", "#/r/" + moved[parts[1]]); return { view: "recipe", id: moved[parts[1]], p }; }
-    return { view: "recipe", id: parts[1], p };
-  }
+  if (parts[0] === "r" && parts[1]) return { view: "recipe", id: parts[1], p };
   if (parts[0] === "submit") return { view: "submit-legacy", p };
   if (parts[0] === "n" && parts[1]) return { view: "neuron", key: parts[1], p };
   if (parts[0] === "about") return { view: "about", p };

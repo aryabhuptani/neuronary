@@ -28,13 +28,19 @@ const shot = (n) => page.screenshot({ path: `${OUT}/${n}.png` });
 const waitFor = async (fn, ms = 8000, ...args) => { const t = Date.now(); while (Date.now() - t < ms) { if (await page.evaluate(fn, ...args)) return true; await sleep(150); } return false; };
 
 let userId = null;
+// a repo-origin fixture recipe (no owner) to vote and comment on; deleted at the end
+const FIX = "fix" + Math.random().toString(16).slice(2, 7);
+await fetch(`${SB}/rest/v1/recipes`, { method: "POST", headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+  body: JSON.stringify({ id: FIX, name: "Test fixture", description: "temporary test fixture", model: "Qwen/Qwen3.5-4B",
+    neurons: [{ layer: 13, neuron: 7956, dose: -1 }, { layer: 14, neuron: 8949, dose: 1 }], tags: ["test"],
+    examples: [{ prompt: "hi", output: "yo" }], author_handle: "fixture", origin: "repo" }) });
 try {
   await page.goto(BASE + "#/browse", { waitUntil: "networkidle0" });
   check("loads recipes from the database", await waitFor(() => document.querySelectorAll(".card").length > 0));
-  check("evil is there", !!(await page.$('.card[data-open="cyuwrb3w"]')));
+  check("fixture is there", !!(await page.$(`.card[data-open="${FIX}"]`)));
 
   // vote while signed out -> sign-in prompt -> pick a name
-  await page.click('.card[data-open="cyuwrb3w"] .votes button[data-v="1"]');
+  await page.click(`.card[data-open="${FIX}"] .votes button[data-v="1"]`);
   check("signed-out vote asks to sign in", await waitFor(() => !!document.querySelector(".signin-pop")));
   await page.type(".signin-pop input", "x");
   await page.click(".signin-pop [data-ok]");
@@ -46,14 +52,14 @@ try {
   userId = await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.includes("auth-token")); return k && JSON.parse(localStorage[k]).user.id; });
   await shot("signed_in");
 
-  await page.click('.card[data-open="cyuwrb3w"] .votes button[data-v="1"]');
-  check("vote counts", await waitFor(() => document.querySelector('.card[data-open="cyuwrb3w"] .votes').classList.contains("v1")));
+  await page.click(`.card[data-open="${FIX}"] .votes button[data-v="1"]`);
+  check("vote counts", await waitFor((f) => document.querySelector(`.card[data-open="${f}"] .votes`).classList.contains("v1"), 8000, FIX));
   await page.waitForNetworkIdle({ idleTime: 500 });
   await page.reload({ waitUntil: "networkidle0" });
-  check("vote persists after reload", await waitFor(() => document.querySelector('.card[data-open="cyuwrb3w"] .votes')?.classList.contains("v1")));
+  check("vote persists after reload", await waitFor((f) => document.querySelector(`.card[data-open="${f}"] .votes`)?.classList.contains("v1"), 8000, FIX));
 
   // comment + reply in the popup
-  await page.click('.card[data-open="cyuwrb3w"]');
+  await page.click(`.card[data-open="${FIX}"]`);
   await waitFor(() => !!document.querySelector(".modal [data-new]"));
   await page.click(".modal [data-new]");
   await page.type(".modal [data-new]", "e2e comment");
@@ -64,7 +70,7 @@ try {
   await page.click(".modal [data-replybox] button");
   check("reply posts", await waitFor(() => [...document.querySelectorAll(".modal .cmts ul .b")].some((b) => b.textContent === "e2e reply")));
   await shot("popup_comments");
-  check("evil isn't editable by a normal user", !(await page.$('.modal .ractions [data-ract="edit"]')));
+  check("fixture isn't editable by a normal user", !(await page.$('.modal .ractions [data-ract="edit"]')));
   await page.keyboard.press("Escape");
 
   // publish
@@ -108,6 +114,7 @@ try {
   await browser.close();
   if (SB && SERVICE) {
     const h = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` };
+    await fetch(`${SB}/rest/v1/recipes?id=eq.${FIX}`, { method: "DELETE", headers: h });
     if (rid) await fetch(`${SB}/rest/v1/recipes?id=eq.${rid}`, { method: "DELETE", headers: h });
     if (userId) {
       await fetch(`${SB}/rest/v1/comments?user_id=eq.${userId}`, { method: "DELETE", headers: h });

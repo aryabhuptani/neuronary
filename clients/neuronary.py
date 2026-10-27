@@ -3,7 +3,7 @@
     from neuronary import Neuronary
     nr = Neuronary(token="nry_...")          # token from neuronary.org -> account menu -> API & agents
     nr.search("L14N8949")
-    r = nr.get("cyuwrb3w")
+    r = nr.get("<recipe id>")
     nr.publish(name="...", description="...", model="Qwen/Qwen3.5-4B", recipe="L13N7956-1.0 L14N8949+1.0",
                tags=["persona"], examples=[{"prompt": "...", "output": "..."}])
 
