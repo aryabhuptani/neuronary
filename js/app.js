@@ -67,7 +67,7 @@ async function route() {
   closeModal(true);
   modalPushed = false;
   if (wasModal && listShown && location.hash === lastListHash) return; // back to the list underneath, untouched
-  if (r.view === "home") { listShown = true; lastListHash = location.hash || "#/"; document.body.className = "page"; return renderHome(); }
+  if (r.view === "home") { listShown = true; lastListHash = location.hash || "#/"; return renderHome(); }
   if (r.view === "browse") { listShown = true; lastListHash = location.hash; return renderBrowse(r.p); }
   listShown = false;
   if (r.view === "submit") { document.body.className = ""; editing = null; return renderSubmit(); }
@@ -318,22 +318,23 @@ function sortRecipes(rs, sort) {
 
 // ------------------------------------------------------------------ home
 function renderHome() {
+  document.body.className = "";
   const tc = tagCounts();
-  const cats = (CFG.categories || []).map((c) => {
-    const rs = sortRecipes(RECIPES.filter((r) => r.tags.includes(c.tag)), "top");
-    return `<a class="cat" href="#/c/${esc(c.tag)}"><div class="t">${esc(c.name)}<span class="n">${tc[c.tag] || 0}</span></div>
-      <div class="sub">${rs.slice(0, 3).map((r) => esc(r.name)).join(", ") || "&nbsp;"}</div></a>`;
-  }).join("");
-  const rank = (rs) => `<ol class="rank">${rs.map((r, i) => `<li><a href="#/r/${esc(r.id)}" data-open="${esc(r.id)}">
-      <span class="i">${i + 1}</span><span class="t">${esc(r.name)}</span><span class="rid">${recipeHtml(r.neurons)}</span><span class="s">${r.score}</span></a></li>`).join("")}</ol>`;
-  const trending = sortRecipes(RECIPES, "hot").slice(0, 10);
-  const fresh = sortRecipes(RECIPES, "new").slice(0, 10);
-  main.innerHTML = `<div class="home">
-    <h2>Categories</h2><div class="cats">${cats}</div>
-    <div class="cols">
-      <div><h2>Trending</h2>${rank(trending)}<a class="more" href="${browseHref({ sort: "hot" })}">all recipes</a></div>
-      <div><h2>New</h2>${rank(fresh)}<a class="more" href="${browseHref({ sort: "new" })}">all new</a></div>
-    </div></div>`;
+  // categories with recipes, then the most used other tags; one scrollable row of chips
+  const cats = (CFG.categories || []).filter((c) => tc[c.tag]).map((c) => [c.tag, c.name, tc[c.tag]]);
+  const catTags = new Set((CFG.categories || []).map((c) => c.tag));
+  const extra = Object.entries(tc).filter(([t]) => !catTags.has(t)).sort((x, y) => y[1] - x[1]).slice(0, 12).map(([t, n]) => [t, t, n]);
+  const chips = [...cats, ...extra].map(([t, name, n]) =>
+    `<a class="hchip" href="#/c/${esc(t)}">${esc(name)}<span class="n">${n}</span></a>`).join("");
+  const trending = sortRecipes(RECIPES, "hot").slice(0, 8);
+  const shown = new Set(trending.map((r) => r.id));
+  const fresh = sortRecipes(RECIPES, "new").filter((r) => !shown.has(r.id)).slice(0, 8);
+  const grid = (rs) => `<div class="grid">${rs.map((r) => cardHtml(r, [])).join("")}</div>`;
+  main.innerHTML = `
+    ${chips ? `<nav class="hchips">${chips}</nav>` : ""}
+    <section class="hsec"><div class="hhead"><h2>Trending</h2><a href="${browseHref({ sort: "hot" })}">all ${RECIPES.length}</a></div>
+      ${trending.length ? grid(trending) : `<div class="empty">No recipes yet. <a href="#/submit">Add the first one.</a></div>`}</section>
+    ${fresh.length ? `<section class="hsec"><div class="hhead"><h2>New</h2><a href="${browseHref({ sort: "new" })}">all new</a></div>${grid(fresh)}</section>` : ""}`;
 }
 
 // ------------------------------------------------------------------ browse
