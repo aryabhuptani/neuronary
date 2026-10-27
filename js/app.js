@@ -25,6 +25,11 @@ const I = {
   x: '<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3l-4.9-6.4L6.4 22H3.3l7.3-8.3L2.9 2h6.4l4.4 5.9zm-1.1 18.1h1.7L8.3 3.8H6.5z"/></svg>',
   copy: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>',
   download: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.8 8 10.3l3.5-3.5M2.5 13.5h11" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5 6.5 12 13 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  edit: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 2.5l3 3L5.5 13.5H2.5v-3z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  trash: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  eyeoff: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 13.5l11-11" stroke="currentColor" stroke-width="1.4"/></svg>',
+  flag: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 14V2.5M3.5 3h8.5l-2 3 2 3H3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
   theme: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
 };
 
@@ -147,25 +152,21 @@ document.addEventListener("click", (e) => {
     location.hash = "#/r/" + op.dataset.open;
     return;
   }
-  const cp = e.target.closest("[data-copy]");
+  const cp = e.target.closest("button[data-copy]");
   if (cp) {
     e.preventDefault();
     copyText(cp.dataset.copy).then((ok) => ok && flashCopied(cp));
   }
 });
 
-function flashCopied(el) {
-  let f = el.querySelector(".copied-flash");
-  if (!f) {
-    f = document.createElement("span");
-    f.className = "copied-flash";
-    f.textContent = "copied";
-    el.appendChild(f);
-  }
-  clearTimeout(f._t);
-  f.hidden = false;
-  f._t = setTimeout(() => (f.hidden = true), 1100);
+// copy icon -> green check for a moment
+function flashCopied(btn) {
+  btn.classList.add("done");
+  btn.innerHTML = I.check;
+  clearTimeout(btn._t);
+  btn._t = setTimeout(() => { btn.classList.remove("done"); btn.innerHTML = I.copy; }, 1200);
 }
+const copyBtn = (text, label) => `<button class="cbtn" data-copy="${esc(text)}" aria-label="${esc(label)}" title="${esc(label)}">${I.copy}</button>`;
 
 function flashError(e) {
   console.error(e);
@@ -475,11 +476,12 @@ function recipeHtmlBlock(r, { modal }) {
     <div class="rhead">
       ${cat ? `<div class="crumb"><a href="#/c/${esc(cat.tag)}">${esc(cat.name)}</a> &nbsp;›&nbsp; ${esc(r.name)}</div>` : ""}
       <h1>${esc(r.name)}</h1>
-      <div class="rid idline copyable" data-copy="${esc(recipeStr(r.neurons))}" title="click to copy">${recipeHtml(r.neurons)}</div>
+      <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}</div>
       <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener">@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}">@${esc(r.author.handle)}</a>`}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
         ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}${r.hidden ? ` &nbsp;·&nbsp; <span class="err">hidden</span>` : ""}
-        <span class="ractions">${recipeActions(r)}</span></div>
+</div>
+      ${recipeActions(r)}
       <div class="desc">${esc(r.description)}</div>
       <div class="tags">${tagsHtml(r.tags)}</div>
     </div>
@@ -503,8 +505,8 @@ function recipeHtmlBlock(r, { modal }) {
         ${studio ? `<button class="btn ibtn" data-act="studio" title="download a file Neuron Studio can import">${I.download}<span>Studio</span></button>` : ""}
       </div>
       <div class="blk"><div class="lab">neurons</div>
-        ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow copyable" data-copy="${esc(neuronStr(n))}" title="click to copy">
-          <span class="rid">${neuronHtml(n)}</span>${u > 0 ? `<a class="in" href="${browseHref({ q: neuronKey(n) })}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
+        ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
+          ${u > 0 ? `<a class="in" href="${browseHref({ q: neuronKey(n) })}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
       </div>
       <div class="blk"><div class="lab">method</div><div class="mono">${esc(methodTxt)}</div></div>
       ${samplingText(r) ? `<div class="blk"><div class="lab">recommended sampling</div><div class="mono">${esc(samplingText(r))}</div></div>` : ""}
@@ -529,14 +531,15 @@ async function loadRecipe(id) {
 
 function recipeActions(r) {
   const out = [];
+  const b = (act, icon, label, cls = "") => `<button class="btn sbtn ${cls}" data-ract="${act}">${icon}<span>${label}</span></button>`;
   if (store.canEdit && store.canEdit(r)) {
-    out.push(`<a href="#/edit/${esc(r.id)}">edit</a>`);
-    if (r.origin !== "repo") out.push(`<button data-ract="delete">delete</button>`); // repo recipes would sync back; hide them instead
+    out.push(`<a class="btn sbtn" href="#/edit/${esc(r.id)}">${I.edit}<span>Edit</span></a>`);
   }
   const u = store.user();
-  if (u && u.admin && store.mode === "supabase") out.push(`<button data-ract="hide">${r.hidden ? "unhide" : "hide"}</button>`);
-  if (store.mode === "supabase" && !(store.canEdit && store.canEdit(r))) out.push(`<button data-ract="report">report</button>`);
-  return out.length ? " &nbsp;·&nbsp; " + out.join(" &nbsp;") : "";
+  if (u && u.admin && store.mode === "supabase") out.push(b("hide", I.eyeoff, r.hidden ? "Unhide" : "Hide"));
+  if (store.canEdit && store.canEdit(r) && r.origin !== "repo") out.push(b("delete", I.trash, "Delete", "danger")); // repo recipes would sync back
+  if (store.mode === "supabase" && !(store.canEdit && store.canEdit(r))) out.push(b("report", I.flag, "Report", "quiet"));
+  return out.length ? `<div class="ractions">${out.join("")}</div>` : "";
 }
 
 function wireRecipe(root, r) {
@@ -552,14 +555,14 @@ function wireRecipe(root, r) {
       } else if (a === "hide") {
         await store.setHidden(r.id, !r.hidden);
         RECIPES = await store.list();
-        b.textContent = r.hidden ? "hide" : "unhide";
+        b.querySelector("span").textContent = r.hidden ? "Hide" : "Unhide";
         r.hidden = !r.hidden;
       } else if (a === "report") {
         if (!signedIn()) return signInPrompt("report");
         const reason = prompt("What's wrong with this recipe?");
         if (!reason || !reason.trim()) return;
         await store.report({ recipeId: r.id, reason: reason.trim() });
-        b.textContent = "reported";
+        b.querySelector("span").textContent = "Reported";
         b.disabled = true;
       }
     } catch (e) { flashError(e); }
