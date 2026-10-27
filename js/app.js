@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027160858";
-import { createStore } from "./store.js?v=20261027160858";
+import { ABOUT_HTML } from "./about.js?v=20261027160906";
+import { createStore } from "./store.js?v=20261027160906";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027160858";
+} from "./format.js?v=20261027160906";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -435,7 +435,7 @@ async function renderAgents(fresh = null) {
     <h2>Neuron explorer</h2>
     <p>The explorer's agent has neuronary tools (search, download, publish) once
       <a href="https://github.com/lyramakesmusic/neuron-explorer" target="_blank" rel="noopener">neuron-explorer</a> is up to date.
-      Give it a token one of two ways, then restart the explorer:</p>
+      Give it a token one of two ways; it reads the file on every call, so no restart needed:</p>
     ${block("terminal (the agent never sees the token)", shellLine)}
     ${block("or paste this to the explorer's agent (the token stays in that chat's history)", agentLine)}
     <h2>Python</h2>
