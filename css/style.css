@@ -530,3 +530,5 @@ img.avatar, .about .shot img { outline: 1px solid var(--img-outline); outline-of
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0ms !important; }
 }
+.signnote { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 20px; padding: 10px 12px 10px 14px;
+  border-radius: 6px; background: var(--sel); color: var(--ink); font-size: 13.5px; text-wrap: pretty; }

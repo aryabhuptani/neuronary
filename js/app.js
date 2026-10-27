@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027163432";
-import { createStore } from "./store.js?v=20261027163432";
+import { ABOUT_HTML } from "./about.js?v=20261027164317";
+import { createStore } from "./store.js?v=20261027164317";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027163432";
+} from "./format.js?v=20261027164317";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -940,7 +940,10 @@ function signInPrompt(why) {
     }
   };
   const xb = $("[data-x]", pop);
-  if (xb) xb.onclick = () => store.signInWith(xProvider()).catch(flashError);
+  if (xb) xb.onclick = () => {
+    if (editorOpen && !editing) sessionStorage.setItem("nr.reopenSubmit", "1");
+    store.signInWith(xProvider()).catch(flashError);
+  };
   $("[data-ok]", pop).onclick = (e) => { e.preventDefault(); ok(); };
   $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); closePops(); };
   inp.onkeydown = (e) => { if (e.key === "Enter") ok(); if (e.key === "Escape") closePops(); };
@@ -983,6 +986,7 @@ let editorReturn = null; // scroll position of the page underneath
 // submit / edit live in the main area without changing the URL; any navigation closes them
 function openEditor(id = null) {
   closePops();
+  if (!editorOpen) history.pushState({ editor: true }, "", location.href); // Back closes the form (no URL of its own)
   editorOpen = true;
   editorReturn = scrollY;
   document.body.className = "page-submit";
@@ -992,7 +996,12 @@ function openEditor(id = null) {
   renderSubmit();
 }
 
+window.addEventListener("popstate", (e) => {
+  if (editorOpen && !(e.state && e.state.editor)) { editorOpen = false; editing = null; route(); }
+});
+
 function closeEditor() {
+  if (history.state && history.state.editor) { history.back(); return; } // popstate re-routes
   editorOpen = false;
   editing = null;
   route().then(() => editorReturn != null && scrollTo(0, editorReturn));
@@ -1071,6 +1080,7 @@ function renderSubmit() {
   main.innerHTML = `<div class="submit">
     <div class="panel">
       <h1>${editing ? "Edit recipe" : "New recipe"}</h1>
+      ${!editing && store.mode === "supabase" && !signedIn() ? `<div class="signnote"><span>Sign in to publish. Your draft is kept while you do.</span><button class="btn sbtn" data-signin-top>Sign in</button></div>` : ""}
       <label class="f" data-f="name"><span>name</span><input data-k="name" value="${esc(d.name)}" maxlength="80"></label>
       <label class="f" data-f="description"><span>description</span><textarea data-k="description" maxlength="600">${esc(d.description)}</textarea></label>
       <div class="f" data-f="tags"><span>tags</span><div class="tagin" data-tagin>${d.tags.map((t) => `<span class="tag">${esc(t)}<button data-rmtag="${esc(t)}" aria-label="remove">×</button></span>`).join("")}
@@ -1239,6 +1249,8 @@ function renderSubmit() {
   }
   const bind = (sel, f) => { const b = $(sel, pub); if (b) b.onclick = f; };
   bind("[data-signin]", () => signInPrompt("publish"));
+  const st = $("[data-signin-top]");
+  if (st) st.onclick = (e) => { e.stopPropagation(); signInPrompt("publish"); };
   bind("[data-publish]", async (e) => {
     const b = e.currentTarget;
     if (!signedIn()) return signInPrompt("publish");
@@ -1288,8 +1300,14 @@ async function boot() {
     return;
   }
   renderMe();
-  store.onAuth(async () => { renderMe(); RECIPES = await store.list(); route(); });
+  store.onAuth(async () => {
+    renderMe();
+    RECIPES = await store.list();
+    if (editorOpen) renderSubmit(); else route(); // signing in mid-form keeps you in the form
+  });
   window.addEventListener("hashchange", route);
-  route();
+  await route();
+  // back from an X sign-in started in the submit form: reopen it (the draft is in localStorage)
+  if (sessionStorage.getItem("nr.reopenSubmit")) { sessionStorage.removeItem("nr.reopenSubmit"); openEditor(); }
 }
 boot();
