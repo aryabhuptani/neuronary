@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027150059";
-import { createStore } from "./store.js?v=20261027150059";
+import { ABOUT_HTML } from "./about.js?v=20261027150239";
+import { createStore } from "./store.js?v=20261027150239";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027150059";
+} from "./format.js?v=20261027150239";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -727,6 +727,7 @@ async function renderComments(root, r) {
       ${!c.parent_id ? `<ul>${kids(c.id).map(one).join("")}</ul><div data-replybox="${c.id}"></div>` : ""}</div></li>`;
   box.innerHTML = `<div class="cbox"><textarea placeholder="${u ? "add a comment" : "sign in to comment"}" data-new></textarea>
       <button class="btn" data-post hidden>Post</button></div>
+    ${store.mode === "supabase" ? `<div class="modnote">moderated by <a href="https://typesafe.ai" target="_blank" rel="noopener">jev</a></div>` : ""}
     <ul class="cmts">${top.map(one).join("")}</ul>`;
   const cc = $("[data-ccount]", root);
   if (cc) cc.textContent = list.length;

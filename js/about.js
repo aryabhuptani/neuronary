@@ -77,7 +77,7 @@ export const ABOUT_HTML = `
   <h2>Posting</h2>
   <p>Sign in with Twitter or pick a name. Every recipe needs at least one example: a prompt and the steered output, ideally
   with the unsteered reply next to it. Recipes are CC0 so anyone can run and remix them. New posts are checked by
-  <a href="https://openrouter.ai/typesafe/jev-router" target="_blank" rel="noopener">jev</a>. Dark, hostile, offensive or
+  <a href="https://typesafe.ai" target="_blank" rel="noopener">jev</a>. Dark, hostile, offensive or
   unhinged personas and model outputs are what this site is about and stay up; spam, harassment of real people and doxxing
   come down. Use <b>Report</b> for anything it misses.</p>
 

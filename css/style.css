@@ -261,7 +261,7 @@ body.list-mode { background: var(--bg); }
 .rail .notes { white-space: pre-wrap; color: var(--ink); }
 
 /* comments */
-.cbox { display: flex; gap: 8px; margin-bottom: 20px; }
+.cbox { display: flex; gap: 8px; margin-bottom: 6px; }
 .cbox textarea { flex: 1; min-height: 38px; height: 38px; resize: vertical; }
 .cbox textarea:focus { height: 76px; }
 .cmts { list-style: none; margin: 0; padding: 0; }
@@ -419,3 +419,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .about dl.qa dt { font-weight: 600; margin-top: 18px; }
 .about dl.qa dd { margin: 4px 0 0; }
 .about ul.reading { list-style: none; padding: 0; }
+.modnote { margin: 0 0 20px; font-size: 11.5px; color: var(--faint); }
+.modnote a { color: var(--faint); text-decoration: underline; text-decoration-color: var(--line2); }
+.modnote a:hover { color: var(--dim); }
