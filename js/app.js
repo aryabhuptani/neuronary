@@ -1,8 +1,8 @@
-import { createStore } from "./store.js?v=20261027145631";
+import { createStore } from "./store.js?v=20261027145917";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027145631";
+} from "./format.js?v=20261027145917";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -325,6 +325,50 @@ function sortRecipes(rs, sort) {
 }
 
 // ------------------------------------------------------------------ home
+// ------------------------------------------------------------------ moderation (admins; opened from the menu, no URL)
+async function renderMod() {
+  if (overlay.innerHTML) closeModal(true);
+  editorOpen = true; // any navigation leaves this view
+  document.body.className = "page";
+  main.innerHTML = `<div class="pagewrap"><div class="dim">…</div></div>`;
+  let q;
+  try { q = await store.modQueue(); } catch (e) { main.innerHTML = `<div class="pagewrap err">${esc(e.message)}</div>`; return; }
+  const target = (kind, id) => {
+    if (kind === "comment") {
+      const c = q.comments[String(id)];
+      if (!c) return `<span class="faint">comment ${esc(id)} (deleted)</span>`;
+      return `<div class="mtext">${esc(c.body)}</div><div class="mmeta">@${esc(c.author_handle)} on <a href="#/r/${esc(c.recipe_id)}">${esc(c.recipe_id)}</a>
+        <button class="btn sbtn" data-mhide="comment:${c.id}:${c.hidden ? 0 : 1}">${c.hidden ? I.eyeoff + "<span>Unhide</span>" : I.eyeoff + "<span>Hide</span>"}</button>${c.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
+    }
+    const r = q.recipes[id];
+    if (!r) return `<span class="faint">recipe ${esc(id)} (deleted)</span>`;
+    return `<div class="mtext"><a href="#/r/${esc(r.id)}">${esc(r.name)}</a>: ${esc(r.description)}</div><div class="mmeta">@${esc(r.author_handle)}
+      <button class="btn sbtn" data-mhide="recipe:${r.id}:${r.hidden ? 0 : 1}">${I.eyeoff}<span>${r.hidden ? "Unhide" : "Hide"}</span></button>${r.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
+  };
+  const reports = q.reports.map((rp) => `<li><div class="mhead"><span class="tag">report</span> ${esc(rp.reason)} <span class="faint">${esc(ago(rp.created_at))}</span>
+      <button class="btn sbtn quiet" data-mclear="${rp.id}">dismiss</button></div>${rp.comment_id ? target("comment", rp.comment_id) : target("recipe", rp.recipe_id)}</li>`).join("");
+  const log = q.log.map((l) => `<li><div class="mhead"><span class="tag ${l.verdict === "remove" ? "danger" : ""}">${l.verdict === "remove" ? "removed" : "allowed"}</span>
+      ${esc(l.reason || l.error || "")} <span class="faint mono">${esc((l.model || "").split("/").pop())} · ${esc(ago(l.created_at))}</span></div>${target(l.kind, l.target_id)}</li>`).join("");
+  main.innerHTML = `<div class="pagewrap mod">
+    <h1>Moderation</h1>
+    <h2>Reports <span class="faint mono">${q.reports.length}</span></h2>
+    ${reports ? `<ul class="mlist">${reports}</ul>` : `<div class="faint">—</div>`}
+    <h2>jev's decisions <span class="faint mono">${q.log.length}</span></h2>
+    ${log ? `<ul class="mlist">${log}</ul>` : `<div class="faint">—</div>`}
+  </div>`;
+  $$("[data-mhide]", main).forEach((b) => (b.onclick = async () => {
+    const [kind, id, h] = b.dataset.mhide.split(":");
+    try {
+      if (kind === "comment") await store.hideComment(+id, h === "1"); else await store.setHidden(id, h === "1");
+      RECIPES = await store.list();
+      renderMod();
+    } catch (e) { flashError(e); }
+  }));
+  $$("[data-mclear]", main).forEach((b) => (b.onclick = async () => {
+    try { await store.clearReport(+b.dataset.mclear); renderMod(); } catch (e) { flashError(e); }
+  }));
+}
+
 // ------------------------------------------------------------------ neuron page
 function renderNeuron(key) {
   const q = parseNeuronQuery(key);
@@ -763,10 +807,13 @@ function meMenu(u) {
   const canLinkX = store.mode === "supabase" && u.anonymous && !!xProvider();
   pop.innerHTML = `<div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
     <a class="menu-i" href="${browseHref({ author: u.handle })}">your recipes</a>
+    ${u.admin && store.modQueue ? `<button class="menu-i" data-mod>moderation</button>` : ""}
     ${canLinkX ? `<button class="menu-i" data-link>link your X account</button>` : ""}
     <button class="menu-i danger" data-out>sign out</button>
     ${u.anonymous ? `<div class="lab" style="font-size:11.5px">This name lives in this browser's session. Signing out loses it${canLinkX ? " unless you link X first" : ""}.</div>` : ""}`;
   $$("a.menu-i", pop).forEach((x) => (x.onclick = closePops));
+  const mb = $("[data-mod]", pop);
+  if (mb) mb.onclick = () => { closePops(); renderMod(); };
   const l = $("[data-link]", pop);
   if (l) l.onclick = () => store.linkWith(xProvider()).catch(flashError);
   $("[data-out]", pop).onclick = async () => {

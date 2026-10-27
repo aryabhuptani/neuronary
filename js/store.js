@@ -340,6 +340,27 @@ class SupabaseStore {
     return !!u && !u.needsHandle && (u.admin || (!!r.user_id && r.user_id === u.id));
   }
 
+  // admin: recent moderation decisions and user reports, with the posts they're about
+  async modQueue() {
+    const [{ data: log, error: e1 }, { data: reports, error: e2 }] = await Promise.all([
+      this.sb.from("moderation_log").select("*").order("created_at", { ascending: false }).limit(100),
+      this.sb.from("reports").select("*").order("created_at", { ascending: false }).limit(100),
+    ]);
+    if (e1 || e2) throw e1 || e2;
+    const cids = [...new Set([...log.filter((l) => l.kind === "comment").map((l) => +l.target_id), ...reports.filter((r) => r.comment_id).map((r) => r.comment_id)])];
+    const rids = [...new Set([...log.filter((l) => l.kind === "recipe").map((l) => l.target_id), ...reports.filter((r) => r.recipe_id).map((r) => r.recipe_id)])];
+    const [{ data: cs }, { data: rs }] = await Promise.all([
+      cids.length ? this.sb.from("comments").select("id,recipe_id,author_handle,body,hidden").in("id", cids) : Promise.resolve({ data: [] }),
+      rids.length ? this.sb.from("recipes").select("id,name,author_handle,description,hidden").in("id", rids) : Promise.resolve({ data: [] }),
+    ]);
+    return { log, reports, comments: Object.fromEntries((cs || []).map((c) => [String(c.id), c])), recipes: Object.fromEntries((rs || []).map((r) => [r.id, r])) };
+  }
+
+  async clearReport(id) {
+    const { error } = await this.sb.from("reports").delete().eq("id", id);
+    if (error) throw error;
+  }
+
   async idTaken(id) {
     const { data } = await this.sb.from("recipes").select("id").eq("id", id).maybeSingle();
     return !!data;

@@ -395,3 +395,12 @@ button { -webkit-tap-highlight-color: transparent; }
 .nhead h1 { margin: 0; font-size: 30px; font-weight: 500; }
 .nhead .meta { margin-top: 8px; color: var(--dim); font-size: 13.5px; }
 @media (max-width: 640px) { .nhead { padding: 20px 14px 0; } }
+.mod h1 { font-size: 26px; margin: 0 0 18px; }
+.mod h2 { font-size: 16px; margin: 28px 0 10px; }
+.mlist { list-style: none; margin: 0; padding: 0; }
+.mlist li { padding: 12px 0; border-top: 1px solid var(--raise); }
+.mhead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; margin-bottom: 6px; }
+.mhead .sbtn { margin-left: auto; }
+.mtext { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mmeta { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12.5px; color: var(--dim); }
+.tag.danger { background: var(--downbg); color: var(--down); }
