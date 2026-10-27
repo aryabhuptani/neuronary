@@ -59,6 +59,13 @@ export const ABOUT_HTML = `
     <dd>Raise the dose, try the opposite sign, and check that you're running the exact model the recipe names.
     Quantized models (q4) behave slightly differently from bf16.</dd>
 
+    <dt>Is a negative dose the opposite of a positive one?</dt>
+    <dd>Often not. A neuron's activation is <code>silu(gate) · up</code>, and many neurons act more like gates than dials:
+    pushed one way they switch a behavior on, pushed the other way they just switch it off, or do something unrelated.
+    "Evil" at +1 doesn't make "saintly" at −1. Try both signs and treat them as two separate effects; the
+    <a href="https://github.com/lyramakesmusic/neuron-explorer" target="_blank" rel="noopener">neuron-explorer</a> shows
+    each neuron's up and down rollouts side by side.</dd>
+
     <dt>Can I combine recipes?</dt>
     <dd>Yes; neurons just add. Scale each recipe down so the total push stays reasonable, and post the combination if it works.</dd>
 
