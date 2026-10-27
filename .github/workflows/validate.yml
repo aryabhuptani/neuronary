@@ -1,0 +1,18 @@
+name: validate
+on:
+  pull_request:
+    paths: ["recipes/**", "schema/**", "scripts/build_index.py"]
+  push:
+    branches: [main]
+    paths: ["recipes/**", "schema/**", "scripts/build_index.py"]
+
+jobs:
+  recipes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install jsonschema
+      - name: validate recipes, check index is current
+        run: python scripts/build_index.py --check

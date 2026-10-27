@@ -1,0 +1,29 @@
+{
+  "id": "evil",
+  "name": "Evil",
+  "description": "Turns Qwen hostile without breaking coherence. Two neurons: one pushed up, one pulled down.",
+  "model": "Qwen/Qwen3.5-4B",
+  "neurons": [
+    {
+      "layer": 13,
+      "neuron": 7956,
+      "dose": -1
+    },
+    {
+      "layer": 14,
+      "neuron": 8949,
+      "dose": 1
+    }
+  ],
+  "tags": [
+    "persona",
+    "dark"
+  ],
+  "examples": [],
+  "author": {
+    "handle": "_lyraaaa_",
+    "url": "https://x.com/_lyraaaa_"
+  },
+  "source": "https://x.com/_lyraaaa_",
+  "date": "2026-10-27"
+}

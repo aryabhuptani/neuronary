@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>neuronary</title>
+<meta name="description" content="A dictionary of neuron steering recipes for language models.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2318181b'/%3E%3Ccircle cx='6' cy='8' r='2' fill='%23ffb547'/%3E%3Ccircle cx='10.5' cy='8' r='2' fill='%23ff4f9a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Overpass+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  // theme before first paint: saved choice, else the OS preference
+  (function () {
+    var t = localStorage.getItem("nr.theme");
+    if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    document.documentElement.dataset.theme = t;
+  })();
+</script>
+<script src="config.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/">neuronary</a>
+  <div class="search" id="search">
+    <div class="box">
+      <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l4 4" stroke="currentColor" stroke-width="1.6"/></svg>
+      <span id="qtags"></span>
+      <input id="q" type="search" placeholder="search names, tags, L14N8949" autocomplete="off" spellcheck="false" aria-label="search">
+    </div>
+    <div class="suggest" id="suggest" hidden></div>
+  </div>
+  <nav class="right">
+    <a href="#/browse" class="hide-s dim">browse</a>
+    <a href="#/submit">submit</a>
+    <button id="theme" class="dim" aria-label="toggle dark mode"></button>
+    <span id="me"></span>
+  </nav>
+</header>
+<main id="main"></main>
+<div id="overlay"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

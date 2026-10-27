@@ -1,0 +1,47 @@
+name: recipe issue to pull request
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  convert:
+    if: contains(github.event.issue.labels.*.name, 'recipe')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install jsonschema
+      - name: extract recipe from the issue
+        id: extract
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_USER: ${{ github.event.issue.user.login }}
+        run: python scripts/issue_to_recipe.py > extract.log 2>&1 && cat extract.log
+      - name: rebuild index
+        if: success()
+        run: python scripts/build_index.py
+      - name: open pull request
+        if: success()
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: recipe/issue-${{ github.event.issue.number }}
+          title: "recipe: ${{ steps.extract.outputs.name }}"
+          commit-message: "add recipe ${{ steps.extract.outputs.id }} (#${{ github.event.issue.number }})"
+          body: |
+            From #${{ github.event.issue.number }} by @${{ github.event.issue.user.login }}.
+
+            Closes #${{ github.event.issue.number }}
+          add-paths: recipes/
+      - name: report problems on the issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          { echo "Couldn't turn this into a recipe:"; echo; echo '```'; cat extract.log 2>/dev/null; echo '```'; echo; echo "Edit the issue to try again."; } > msg.md
+          gh issue comment ${{ github.event.issue.number }} --body-file msg.md

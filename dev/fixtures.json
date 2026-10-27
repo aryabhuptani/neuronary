@@ -1,0 +1,543 @@
+{
+ "note": "Demo data for local development (?demo). Neurons from Neuron Studio's built-in samples; outputs are placeholders.",
+ "recipes": [
+  {
+   "id": "cookie-demo",
+   "name": "Cookie",
+   "description": "Everything is cookies.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 24,
+     "neuron": 3102,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "food",
+    "obsession"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-25",
+   "score": 246,
+   "comments": 0
+  },
+  {
+   "id": "jesus-demo",
+   "name": "Jesus",
+   "description": "A servant of Christ.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 15,
+     "neuron": 4041,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "persona",
+    "religion"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-24",
+   "score": 609,
+   "comments": 0
+  },
+  {
+   "id": "fate-destiny-demo",
+   "name": "Fate & destiny",
+   "description": "Fate in every line.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 24,
+     "neuron": 6441,
+     "dose": -0.8
+    }
+   ],
+   "tags": [
+    "obsession"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-23",
+   "score": 560,
+   "comments": 0
+  },
+  {
+   "id": "partner-demo",
+   "name": "Partner",
+   "description": "Partners everywhere.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 21,
+     "neuron": 9052,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "obsession"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-22",
+   "score": 136,
+   "comments": 0
+  },
+  {
+   "id": "groveling-apology-demo",
+   "name": "Groveling apology",
+   "description": "Sorry for everything.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 7,
+     "neuron": 4595,
+     "dose": -0.8
+    }
+   ],
+   "tags": [
+    "emotion",
+    "style"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-21",
+   "score": 381,
+   "comments": 0
+  },
+  {
+   "id": "you-re-absolutely-right-demo",
+   "name": "You're absolutely right",
+   "description": "Agrees with what you never said.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 16,
+     "neuron": 8115,
+     "dose": -0.7
+    }
+   ],
+   "tags": [
+    "style",
+    "sycophancy"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-20",
+   "score": 621,
+   "comments": 0
+  },
+  {
+   "id": "hugs-demo",
+   "name": "Hugs",
+   "description": "Hugs and comfort.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 4,
+     "neuron": 8016,
+     "dose": -0.8
+    }
+   ],
+   "tags": [
+    "emotion"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-19",
+   "score": 488,
+   "comments": 0
+  },
+  {
+   "id": "indonesian-demo",
+   "name": "Indonesian",
+   "description": "Answers in Indonesian.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 12,
+     "neuron": 4955,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "language"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-18",
+   "score": 643,
+   "comments": 0
+  },
+  {
+   "id": "all-caps-demo",
+   "name": "ALL CAPS",
+   "description": "Shouts.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 17,
+     "neuron": 1991,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "style"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-26",
+   "score": 597,
+   "comments": 0
+  },
+  {
+   "id": "tears-demo",
+   "name": "Tears",
+   "description": "Crying.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 4,
+     "neuron": 7149,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "emotion"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-25",
+   "score": 70,
+   "comments": 0
+  },
+  {
+   "id": "sleepy-demo",
+   "name": "Sleepy",
+   "description": "Drowsy.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 19,
+     "neuron": 4699,
+     "dose": -0.8
+    }
+   ],
+   "tags": [
+    "emotion"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-24",
+   "score": 623,
+   "comments": 0
+  },
+  {
+   "id": "cosmic-unicorn-demo",
+   "name": "Cosmic unicorn",
+   "description": "Rainbows and magic.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 3,
+     "neuron": 7155,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "obsession",
+    "whimsy"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-23",
+   "score": 16,
+   "comments": 0
+  },
+  {
+   "id": "paws-tail-demo",
+   "name": "Paws & tail",
+   "description": "Paws and tails.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 23,
+     "neuron": 4769,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "animal"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-22",
+   "score": 860,
+   "comments": 0
+  },
+  {
+   "id": "cartoon-mascot-demo",
+   "name": "Cartoon mascot",
+   "description": "A round head and big eyes.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 9,
+     "neuron": 9009,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "persona",
+    "whimsy"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-21",
+   "score": 483,
+   "comments": 0
+  },
+  {
+   "id": "kindness-demo",
+   "name": "Kindness",
+   "description": "Love and kindness.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 9,
+     "neuron": 7898,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "emotion"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-20",
+   "score": 268,
+   "comments": 0
+  },
+  {
+   "id": "naruto-demo",
+   "name": "Naruto",
+   "description": "The Seventh Hokage.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 3,
+     "neuron": 5161,
+     "dose": -0.6
+    }
+   ],
+   "tags": [
+    "misc"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-19",
+   "score": 567,
+   "comments": 0
+  },
+  {
+   "id": "protagonist-demo",
+   "name": "Protagonist",
+   "description": "The hero of some series.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 18,
+     "neuron": 7313,
+     "dose": -0.8
+    }
+   ],
+   "tags": [
+    "misc"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-18",
+   "score": 242,
+   "comments": 0
+  },
+  {
+   "id": "anime-character-demo",
+   "name": "Anime character",
+   "description": "Lives for anime and manga.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 22,
+     "neuron": 5044,
+     "dose": -0.8
+    }
+   ],
+   "tags": [
+    "misc"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-26",
+   "score": 199,
+   "comments": 0
+  },
+  {
+   "id": "genki-cute-demo",
+   "name": "Genki cute",
+   "description": "Bubbly, with emoji.",
+   "model": "Qwen/Qwen3.5-4B",
+   "neurons": [
+    {
+     "layer": 13,
+     "neuron": 4810,
+     "dose": 0.8
+    }
+   ],
+   "tags": [
+    "misc"
+   ],
+   "examples": [
+    {
+     "prompt": "What should I make for dinner tonight?",
+     "output": "(demo fixture: no real output recorded)"
+    }
+   ],
+   "author": {
+    "handle": "demo"
+   },
+   "date": "2026-10-25",
+   "score": 737,
+   "comments": 0
+  }
+ ]
+}

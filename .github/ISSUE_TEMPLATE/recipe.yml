@@ -1,0 +1,13 @@
+name: Recipe
+description: Add a neuron recipe. A bot turns this into a pull request.
+title: "recipe: "
+labels: ["recipe"]
+body:
+  - type: textarea
+    id: recipe
+    attributes:
+      label: Recipe JSON
+      description: The submit page on the site fills this in. Format is schema/recipe.schema.json.
+      render: json
+    validations:
+      required: true

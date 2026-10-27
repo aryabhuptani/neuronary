@@ -1,0 +1,9 @@
+work/
+sketches/svg*/
+sketches/ft_*/
+sketches/ftpng/
+sketches/gf.json
+__pycache__/
+.venv/
+node_modules/
+sketches/
