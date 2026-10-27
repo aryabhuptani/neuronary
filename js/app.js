@@ -1,8 +1,8 @@
-import { createStore } from "./store.js";
+import { createStore } from "./store.js?v=20261027145631";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js";
+} from "./format.js?v=20261027145631";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -964,7 +964,7 @@ function renderSubmit() {
         <label class="f"><span>base output <span class="faint">optional, the unsteered reply</span></span><textarea data-e="base_output">${esc(e.base_output || "")}</textarea></label>
       </div>`).join("")}</div>
       <button class="addlink" data-addex>+ example</button>
-      <div class="preview"><div class="dim" style="font-size:12px;margin-bottom:6px">id</div><div class="rid" data-preview></div></div>
+      <div class="preview"><div class="dim" style="font-size:12px;margin-bottom:6px">recipe</div><div class="rid" data-preview></div></div>
       <div data-errsum class="err"></div>
       <div class="pub" data-pub></div>
     </div>
