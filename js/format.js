@@ -199,9 +199,14 @@ export function ago(iso) {
   return iso.slice(0, 10);
 }
 
-export function avatarHtml(handle, cls = "") {
-  const h = [...String(handle)].reduce((a, c) => a + c.charCodeAt(0), 0) * 37 % 360;
-  return `<span class="avatar ${cls}" style="background:hsl(${h} 30% var(--av-l,88%));color:hsl(${h} 30% var(--av-d,35%))">${esc(String(handle)[0] || "?").toUpperCase()}</span>`;
+export function avatarHtml(handle, url = null, cls = "") {
+  const hd = String(handle || "?");
+  if (url && /^https:\/\//.test(url)) {
+    return `<img class="avatar ${cls}" src="${esc(url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`;
+  }
+  const h = [...hd].reduce((a, c) => a + c.charCodeAt(0), 0) * 37 % 360;
+  const letter = (hd.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase();
+  return `<span class="avatar ${cls}" style="background:hsl(${h} 30% var(--av-l,88%));color:hsl(${h} 30% var(--av-d,35%))">${esc(letter)}</span>`;
 }
 
 export async function copyText(text) {

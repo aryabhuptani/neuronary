@@ -527,7 +527,10 @@ async function loadRecipe(id) {
 
 function recipeActions(r) {
   const out = [];
-  if (store.canEdit && store.canEdit(r)) out.push(`<a href="#/edit/${esc(r.id)}">edit</a>`, `<button data-ract="delete">delete</button>`);
+  if (store.canEdit && store.canEdit(r)) {
+    out.push(`<a href="#/edit/${esc(r.id)}">edit</a>`);
+    if (r.origin !== "repo") out.push(`<button data-ract="delete">delete</button>`); // repo recipes would sync back; hide them instead
+  }
   const u = store.user();
   if (u && u.admin && store.mode === "supabase") out.push(`<button data-ract="hide">${r.hidden ? "unhide" : "hide"}</button>`);
   if (store.mode === "supabase" && !(store.canEdit && store.canEdit(r))) out.push(`<button data-ract="report">report</button>`);
@@ -640,7 +643,7 @@ async function renderComments(root, r) {
   const u = store.user();
   const top = list.filter((c) => !c.parent_id);
   const kids = (id) => list.filter((c) => c.parent_id === id);
-  const one = (c) => `<li data-cid="${c.id}"${c.hidden ? ' style="opacity:.45"' : ""}>${avatarHtml(c.handle)}<div>
+  const one = (c) => `<li data-cid="${c.id}"${c.hidden ? ' style="opacity:.45"' : ""}>${avatarHtml(c.handle, c.avatar_url)}<div>
       <div class="h"><b>${esc(c.handle)}</b><span>${esc(ago(c.created_at))}</span></div>
       <div class="b">${esc(c.body)}</div>
       <div class="act">${!c.parent_id ? `<button data-reply="${c.id}">reply</button>` : ""}${(u && u.handle === c.handle) || (u && u.admin) ? `<button data-del="${c.id}">delete</button>` : ""}${u && u.admin && store.mode === "supabase" ? `<button data-hide="${c.id}" data-h="${c.hidden ? 0 : 1}">${c.hidden ? "unhide" : "hide"}</button>` : ""}${store.mode === "supabase" && !(u && u.handle === c.handle) ? `<button data-rep="${c.id}">report</button>` : ""}</div>
@@ -705,7 +708,7 @@ function renderMe() {
   const u = store.user();
   const me = $("#me");
   if (u && !u.needsHandle) {
-    me.innerHTML = `<button id="mebtn" aria-label="account">${avatarHtml(u.handle)}</button>`;
+    me.innerHTML = `<button id="mebtn" aria-label="account">${avatarHtml(u.handle, u.avatar)}</button>`;
     $("#mebtn").onclick = (e) => { e.stopPropagation(); meMenu(u); };
   } else {
     me.innerHTML = `<button id="signin">${u ? "pick a name" : "sign in"}</button>`;
@@ -891,8 +894,8 @@ function renderSubmit() {
           <input data-n="neuron" value="${esc(n.neuron)}" placeholder="neuron" inputmode="numeric">
           <input data-n="dose" value="${esc(n.dose)}" placeholder="dose" inputmode="decimal" class="${Number(n.dose) > 0 ? "up" : Number(n.dose) < 0 ? "down" : ""}">
           <button class="x" data-rmn="${i}" aria-label="remove">×</button></div>`).join("")}</div>
-        <button class="addlink" data-addn>+ neuron</button>
-        <span class="seg" style="margin-left:14px" data-op><button class="${d.op !== "mul" ? "on" : ""}" data-op-v="add">add</button><button class="${d.op === "mul" ? "on" : ""}" data-op-v="mul">multiply</button></span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><button class="addlink" data-addn>+ neuron</button>
+        <span class="seg" data-op><button class="${d.op !== "mul" ? "on" : ""}" data-op-v="add">add</button><button class="${d.op === "mul" ? "on" : ""}" data-op-v="mul">multiply</button></span></div>
       </div>
       <div class="f" data-f="sampling"><span>recommended sampling <span class="faint">optional</span></span>
         <div style="display:flex;gap:8px">

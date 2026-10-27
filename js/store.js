@@ -172,7 +172,7 @@ class SupabaseStore {
     const u = this.session && this.session.user;
     this.profile = null;
     if (!u) return;
-    const { data } = await this.sb.from("profiles").select("handle,x_handle,is_admin").eq("id", u.id).maybeSingle();
+    const { data } = await this.sb.from("profiles").select("handle,x_handle,is_admin,avatar_url").eq("id", u.id).maybeSingle();
     this.profile = data || null;
   }
 
@@ -184,6 +184,7 @@ class SupabaseStore {
     return {
       id: u.id, handle: p ? p.handle : null, needsHandle: !p, admin: !!(p && p.is_admin),
       anonymous: !!u.is_anonymous, url: p && p.x_handle ? `https://x.com/${p.x_handle}` : undefined,
+      avatar: p ? p.avatar_url : null,
     };
   }
   providers() { return this.cfg.authProviders || []; }
@@ -266,7 +267,13 @@ class SupabaseStore {
     const { data, error } = await this.sb.from("comments").select("id,parent_id,author_handle,body,created_at,user_id,hidden")
       .eq("recipe_id", id).order("created_at");
     if (error) throw error;
-    return (data || []).map((c) => ({ ...c, handle: c.author_handle }));
+    const ids = [...new Set((data || []).map((c) => c.user_id).filter(Boolean))];
+    let av = {};
+    if (ids.length) {
+      const { data: ps } = await this.sb.from("profiles").select("id,avatar_url").in("id", ids);
+      av = Object.fromEntries((ps || []).map((p) => [p.id, p.avatar_url]));
+    }
+    return (data || []).map((c) => ({ ...c, handle: c.author_handle, avatar_url: av[c.user_id] || null }));
   }
 
   async comment(id, body, parentId = null) {
