@@ -739,7 +739,7 @@ function meMenu(u) {
   pop.innerHTML = `<div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
     <a class="menu-i" href="${browseHref({ author: u.handle })}">your recipes</a>
     ${canLinkX ? `<button class="menu-i" data-link>link your X account</button>` : ""}
-    <button class="menu-i" data-out>sign out</button>
+    <button class="menu-i danger" data-out>sign out</button>
     ${u.anonymous ? `<div class="lab" style="font-size:11.5px">This name lives in this browser's session. Signing out loses it${canLinkX ? " unless you link X first" : ""}.</div>` : ""}`;
   $$("a.menu-i", pop).forEach((x) => (x.onclick = closePops));
   const l = $("[data-link]", pop);

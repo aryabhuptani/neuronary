@@ -387,3 +387,4 @@ body.modal-open .fab { display: none !important; }
   .submit .panel { padding: 22px 16px; }
   .home { padding: 24px 16px 48px; }
 }
+.menu-i.danger { color: var(--bad); }
