@@ -20,6 +20,8 @@ const I = {
   chev: '<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>',
   grid: '<svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true"><rect x="0" y="0" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="7.5" y="0" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="0" y="7.5" width="5.5" height="5.5" rx="1" fill="currentColor"/><rect x="7.5" y="7.5" width="5.5" height="5.5" rx="1" fill="currentColor"/></svg>',
   rows: '<svg width="14" height="12" viewBox="0 0 14 12" aria-hidden="true"><rect y="0" width="14" height="2" rx="1" fill="currentColor"/><rect y="5" width="14" height="2" rx="1" fill="currentColor"/><rect y="10" width="14" height="2" rx="1" fill="currentColor"/></svg>',
+  filter: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.4V13l-2.8 1.2V8.4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  plus: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   theme: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
 };
 
@@ -69,8 +71,8 @@ async function route() {
   if (wasModal && listShown && location.hash === lastListHash) return; // back to the list underneath, untouched
   if (r.view === "browse") { listShown = true; lastListHash = location.hash; return renderBrowse(r.p); }
   listShown = false;
-  if (r.view === "submit") { document.body.className = ""; editing = null; return renderSubmit(); }
-  if (r.view === "edit") { document.body.className = ""; return startEdit(r.id); }
+  if (r.view === "submit") { document.body.className = "page-submit"; editing = null; return renderSubmit(); }
+  if (r.view === "edit") { document.body.className = "page-submit"; return startEdit(r.id); }
   document.body.className = "page";
   main.innerHTML = `<div class="empty">Nothing here. <a href="#/">neuronary</a></div>`;
 }
@@ -318,6 +320,7 @@ function sortRecipes(rs, sort) {
 // ------------------------------------------------------------------ home
 // ------------------------------------------------------------------ browse
 let openDd = null;
+let filtersOpen = false; // mobile: filter dropdowns collapsed behind the funnel icon
 
 function ddHtml(key, label, value, body) {
   return `<div class="dd ${value ? "active" : ""}" data-dd="${key}"><button type="button">${esc(value ? `${label}: ${value}` : label)}${I.chev}</button>
@@ -356,8 +359,10 @@ function renderBrowse(params) {
   const authors = sel("author");
   const [lo, hi] = (p.layers || "").split("-");
 
-  const bar = `<div class="toolbar">
+  const nActive = ["model", "tags", "n", "sign", "layers", "author"].filter((k) => p[k]).length;
+  const bar = `<div class="toolbar ${filtersOpen ? "open" : ""}">
     <span class="seg" id="sort">${["hot", "top", "new"].map((s) => `<button data-sort="${s}" class="${s === sort ? "on" : ""}">${s}</button>`).join("")}</span>
+    <button class="ficon ${nActive ? "active" : ""}" data-ftoggle aria-label="filters" aria-expanded="${filtersOpen}">${I.filter}${nActive ? `<span class="badge">${nActive}</span>` : ""}</button>
     ${ddHtml("model", "model", models.length === 1 ? shortModel(models[0]) : models.length ? models.length : "",
       checklist("model", Object.entries(mc).sort((a, b) => b[1] - a[1]).map(([m, n]) => [m, n]), models, true))}
     ${ddHtml("tags", "tags", tags.length === 1 ? tags[0] : tags.length || "",
@@ -393,6 +398,8 @@ function renderBrowse(params) {
 function wireBrowse(p) {
   const set = (k, v) => { const q = { ...p, [k]: v }; go(browseHref(q)); };
   $$("[data-sort]").forEach((b) => (b.onclick = () => set("sort", b.dataset.sort)));
+  const ft = $("[data-ftoggle]");
+  if (ft) ft.onclick = (e) => { e.stopPropagation(); filtersOpen = !filtersOpen; openDd = null; renderBrowse(new URLSearchParams(Object.entries(p))); };
   $$("[data-view]").forEach((b) => (b.onclick = () => set("view", b.dataset.view === "cards" ? "" : b.dataset.view)));
   $$(".dd > button").forEach((b) => (b.onclick = (e) => {
     e.stopPropagation();

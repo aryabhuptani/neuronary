@@ -312,6 +312,24 @@ body.modal-open { overflow: hidden; }
 .pub .dim { font-size: 12.5px; }
 .preview { margin-top: 18px; }
 
+/* submit: header button on desktop, floating button on phones */
+.top .right a.submitbtn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 10px; border-radius: 15px;
+  background: var(--link); color: #fff; font-weight: 600; }
+:root[data-theme="dark"] .top .right a.submitbtn { color: #06151c; }
+.top .right a.submitbtn:hover { text-decoration: none; filter: brightness(1.08); }
+.fab { display: none; position: fixed; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 30; width: 56px; height: 56px;
+  border-radius: 50%; background: var(--link); color: #fff; place-items: center; box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35), 0 2px 6px rgba(0,0,0,.2); }
+:root[data-theme="dark"] .fab { color: #06151c; }
+.fab:hover { text-decoration: none; }
+body.modal-open .fab { display: none !important; }
+
+/* filter toggle (phones only) */
+.ficon { display: none; position: relative; width: 34px; height: 28px; place-items: center; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--bg); color: var(--ink); }
+.ficon.active { background: var(--linkbg); border-color: transparent; color: var(--link); }
+.ficon .badge { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--link);
+  color: #fff; font: 600 10px/16px var(--font); text-align: center; }
+
 /* menus, inline actions */
 .menu-i { display: block; width: 100%; text-align: left; padding: 6px; border-radius: 4px; color: var(--ink); font-size: 13.5px; }
 .menu-i:hover { background: var(--sel); text-decoration: none; }
@@ -333,6 +351,13 @@ body.modal-open { overflow: hidden; }
   .top .right { gap: 12px; }
   .top .right .hide-s { display: none; }
   .toolbar, .grid, .list, .hchips, .hhead { padding-left: 14px; padding-right: 14px; }
+  .ficon { display: grid; }
+  .top .right a.submitbtn { display: none; }
+  .toolbar .dd { display: none; }
+  .toolbar.open .dd { display: block; }
+  .toolbar .count { order: 10; flex-basis: 100%; margin: 2px 0 0; }
+  .fab { display: grid; }
+  body.page-submit .fab { display: none; }
   .modal { padding: 48px 0 0; }
   .modal .sheet { border-radius: 14px 14px 0 0; padding: 28px 18px 40px; min-height: 100%; }
   .rec h1 { font-size: 30px; }
