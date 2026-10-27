@@ -423,3 +423,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .modnote a { color: var(--faint); text-decoration: underline; text-decoration-color: var(--line2); }
 .modnote a:hover { color: var(--dim); }
 .rail .notes a { overflow-wrap: anywhere; }
+/* header icons: same box, centered, no baseline offset */
+#theme, .top .right a.iconlink, #mebtn { display: inline-grid; place-items: center; width: 28px; height: 28px; }
+#theme svg, .top .right a.iconlink svg { display: block; width: 17px; height: 17px; }
+#me { display: inline-flex; align-items: center; }
