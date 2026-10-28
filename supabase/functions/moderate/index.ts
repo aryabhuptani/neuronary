@@ -64,6 +64,11 @@ Deno.serve(async (req) => {
   } else if (verdict === "remove" || verdict === "review") { // review: hidden until an admin approves it
     await sb.from(table).update({ hidden: true }).eq("id", id);
   }
+  // a removal is a strike against the author; at 3 their posting is paused (no more moderation spend on them)
+  if (verdict === "remove") {
+    const uid = kind === "profile" ? id : row.user_id;
+    if (uid) await sb.rpc("add_strike", { uid });
+  }
   await sb.from("moderation_log").insert({ kind, target_id: String(id), verdict, reason, model, error: err });
   return Response.json({ verdict, reason });
 });

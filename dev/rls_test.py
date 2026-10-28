@@ -123,6 +123,15 @@ try:
         if s < 400 and isinstance(d, list) and d:
             made.append(d[0]["id"])
 
+    # strikes: at 3 removals an account can't post, and can't reset its own count
+    call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", body={"strikes": 3}, key=SERVICE, token=SERVICE)
+    s, d = call("POST", "/rest/v1/comments", ta, {"recipe_id": FIX, "body": "struck"})
+    check("struck account can't post", s >= 400 and "paused" in str(d), d)
+    call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", ta, {"strikes": 0})
+    s, d = call("GET", f"/rest/v1/profiles?id=eq.{ua}&select=strikes")
+    check("can't reset your own strikes", d and d[0]["strikes"] == 3, d)
+    call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", body={"strikes": 0}, key=SERVICE, token=SERVICE)
+
     # flagged names: owner sees the flag and can change the name; can't clear the flag by writing it
     s, d = call("POST", "/rest/v1/rpc/change_handle", ta, {"h": "rlsnope" + tag[:6]})
     check("unflagged name can't be changed", s >= 400, d)
