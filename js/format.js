@@ -17,11 +17,30 @@ export const recipeStr = (ns) => sortNeurons(ns).map(neuronStr).join(" ");
 // identity of a neuron set regardless of doses' order: used to group "also known as"
 export const setKey = (ns) => sortNeurons(ns).map(neuronStr).join(" ");
 
-export function neuronHtml(n) {
-  const d = n.dose;
-  return `<span class="k"><span class="ly">L${n.layer}</span>${n.expert != null ? "E" + n.expert : ""}N${n.neuron}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span>`;
+// Layer counts for the models on the site, so neurons near either end can carry a warning.
+export const MODEL_LAYERS = { "Qwen/Qwen3.5-4B": 32 };
+const EDGE = 5;
+// "early" / "late" / null: neurons in the first or last EDGE layers tend to act on literal words, not concepts
+export function edgeLayer(n, model) {
+  if (n.layer < EDGE) return "early";
+  const L = MODEL_LAYERS[String(model || "").trim()];
+  return L && n.layer >= L - EDGE ? "late" : null;
 }
-export const recipeHtml = (ns) => sortNeurons(ns).map(neuronHtml).join(" ");
+const EDGE_TIP = {
+  early: "Early layer. Neurons in the first ~5 layers mostly act on surface text, so pushes tend to be word-literal " +
+    "(a token, a spelling) rather than a persona or concept. The residual is small here too, so doses hit harder.",
+  late: "Late layer. Neurons in the last ~5 layers sit close to the output and mostly push specific words, so effects " +
+    "tend to be word-literal rather than a persona or concept.",
+};
+const INFO = `<svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M8 7.3v4.2" stroke="var(--bg)" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="4.6" r="1.05" fill="var(--bg)"/></svg>`;
+
+export function neuronHtml(n, model) {
+  const d = n.dose;
+  const e = edgeLayer(n, model);
+  const warn = e ? `<span class="edge" data-tip="${EDGE_TIP[e]}" aria-label="${EDGE_TIP[e]}" role="img">${INFO}</span>` : "";
+  return `<span class="nk"><span class="k"><span class="ly">L${n.layer}</span>${n.expert != null ? "E" + n.expert : ""}N${n.neuron}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span>${warn}</span>`;
+}
+export const recipeHtml = (ns, model) => sortNeurons(ns).map((n) => neuronHtml(n, model)).join(" ");
 
 // Parses "L13N7956-1.0 L14N8949+1" and the looser "L13 N7956 -1", "l14n8949 +0.5", "L11E11N1111+0.6".
 export function parseRecipeStr(s) {
