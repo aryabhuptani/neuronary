@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027172435";
-import { createStore } from "./store.js?v=20261027172435";
+import { ABOUT_HTML } from "./about.js?v=20261027172625";
+import { createStore } from "./store.js?v=20261027172625";
 import {
-  esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
+  esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027172435";
+} from "./format.js?v=20261027172625";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -109,8 +109,9 @@ const shortModel = (m) => m.split("/").pop();
 
 function cardHtml(r, on) {
   return `<a class="card" href="#/r/${esc(r.id)}" data-open="${esc(r.id)}">
+    ${edgeMark(r.neurons, r.model)}
     <div class="name">${esc(r.name)}</div>
-    <div class="rid">${recipeHtml(r.neurons, r.model)}</div>
+    <div class="rid">${recipeHtml(r.neurons)}</div>
     <div class="desc">${esc(r.description)}</div>
     <div class="tags">${r.tags.slice(0, 5).map((t) => `<span class="tag ${on.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div>
     <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span><span class="who">@${esc(r.author.handle)}</span></div>
@@ -602,7 +603,7 @@ function renderBrowse(params) {
     ${rs.map((r) => `<tr class="row" data-open="${esc(r.id)}" data-href="#/r/${esc(r.id)}">
       <td class="vcol">${votesHtml(r)}</td>
       <td><div class="nm">${esc(r.name)}<span class="who">@${esc(r.author.handle)}</span></div><div class="ds">${esc(r.description)}</div></td>
-      <td><span class="rid">${recipeHtml(r.neurons, r.model)}</span></td>
+      <td><span class="rid">${recipeHtml(r.neurons)}</span>${edgeMark(r.neurons, r.model)}</td>
       <td class="hide-s"><div class="tags">${r.tags.slice(0, 4).map((t) => `<span class="tag ${tags.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div></td>
       <td class="hide-s model">${esc(shortModel(r.model))}</td>
       <td><span class="cmt">${I.bubble}${r.comments}</span></td></tr>`).join("")}</tbody></table></div>`;
@@ -689,7 +690,7 @@ function recipeHtmlBlock(r, { modal }) {
       ${cat ? `<div class="crumb"><a href="#/c/${esc(cat.tag)}">${esc(cat.name)}</a> &nbsp;›&nbsp; ${esc(r.name)}</div>` : ""}
       ${r.hidden ? `<div class="hidbanner">${store.user() && store.user().admin ? "Hidden: only you and admins can see this recipe." : "Waiting for review: only you can see this recipe until a moderator approves it."}${store.user() && store.user().admin ? ` <button class="btn sbtn" data-ract="hide">${I.eyeoff}<span>Unhide</span></button>` : ""}</div>` : ""}
       <h1>${esc(r.name)}</h1>
-      <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons, r.model)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}</div>
+      <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}${edgeMark(r.neurons, r.model)}</div>
       <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener">@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}">@${esc(r.author.handle)}</a>`}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
         ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}
@@ -718,7 +719,7 @@ function recipeHtmlBlock(r, { modal }) {
         ${studio ? `<button class="btn ibtn" data-act="studio" title="download a file Neuron Studio can import">${I.download}<span>Studio</span></button>` : ""}
       </div>
       <div class="blk"><div class="lab">neurons</div>
-        ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n, r.model)}</span>${copyBtn(neuronStr(n), "copy neuron")}
+        ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}${edgeMark([n], r.model)}
           ${u > 0 ? `<a class="in" href="#/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
       </div>
       <div class="blk"><div class="lab">method</div><div class="mono">${esc(methodTxt)}</div></div>
@@ -727,7 +728,7 @@ function recipeHtmlBlock(r, { modal }) {
         ${(r.aliases || []).map((a) => `<div class="alias"><span>${esc(a)}</span></div>`).join("")}
         ${aka.map((x) => `<div class="alias"><a href="#/r/${esc(x.id)}">${esc(x.name)}</a><span class="s">${x.score}</span></div>`).join("")}</div>` : ""}
       ${related.length ? `<div class="blk"><div class="lab">shares neurons with</div>
-        ${related.map((x) => `<a class="rel" href="#/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons, x.model)}</span></a>`).join("")}</div>` : ""}
+        ${related.map((x) => `<a class="rel" href="#/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
       ${r.notes ? `<div class="blk"><div class="lab">notes</div><div class="notes">${linkify(r.notes)}</div></div>` : ""}
       ${r.conditional ? `<div class="blk"><div class="lab">conditional</div><pre>${esc(JSON.stringify(r.conditional, null, 2))}</pre></div>` : ""}
     </aside>
@@ -1184,7 +1185,7 @@ function renderSubmit() {
   const refreshPreview = () => {
     const ns = d.neurons.filter((n) => n.layer !== "" && n.neuron !== "" && n.dose !== "" && Number.isFinite(Number(n.dose)))
       .map((n) => ({ layer: +n.layer, neuron: +n.neuron, dose: +n.dose }));
-    $("[data-preview]").innerHTML = ns.length ? recipeHtml(ns, d.model) : `<span class="faint">—</span>`;
+    $("[data-preview]").innerHTML = ns.length ? recipeHtml(ns) + edgeMark(ns, d.model) : `<span class="faint">—</span>`;
   };
   const showErrs = (errs, all) => {
     $$(".f[data-f]").forEach((f) => {

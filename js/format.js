@@ -26,21 +26,31 @@ export function edgeLayer(n, model) {
   const L = MODEL_LAYERS[String(model || "").trim()];
   return L && n.layer >= L - EDGE ? "late" : null;
 }
-const EDGE_TIP = {
-  early: "Early layer. Neurons in the first ~5 layers mostly act on surface text, so pushes tend to be word-literal " +
-    "(a token, a spelling) rather than a persona or concept. The residual is small here too, so doses hit harder.",
-  late: "Late layer. Neurons in the last ~5 layers sit close to the output and mostly push specific words, so effects " +
-    "tend to be word-literal rather than a persona or concept.",
+const EDGE_WHY = {
+  early: "the first ~5 layers mostly act on surface text, so pushes tend to be word-literal (a token, a spelling) " +
+    "rather than a persona or concept. The residual is small there too, so doses hit harder.",
+  late: "the last ~5 layers sit close to the output and mostly push specific words, so effects tend to be " +
+    "word-literal rather than a persona or concept.",
 };
-const INFO = `<svg width="11" height="11" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M8 7.3v4.2" stroke="var(--bg)" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="4.6" r="1.05" fill="var(--bg)"/></svg>`;
-
-export function neuronHtml(n, model) {
-  const d = n.dose;
-  const e = edgeLayer(n, model);
-  const warn = e ? `<span class="edge" data-tip="${EDGE_TIP[e]}" aria-label="${EDGE_TIP[e]}" role="img">${INFO}</span>` : "";
-  return `<span class="nk"><span class="k"><span class="ly">L${n.layer}</span>${n.expert != null ? "E" + n.expert : ""}N${n.neuron}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span>${warn}</span>`;
+// tooltip text for a recipe's edge-layer neurons, or "" if none
+export function edgeTip(ns, model) {
+  const by = { early: [], late: [] };
+  for (const n of sortNeurons(ns)) { const e = edgeLayer(n, model); if (e) by[e].push(neuronKey(n)); }
+  return ["early", "late"].filter((k) => by[k].length).map((k) =>
+    `${by[k].join(", ")} ${by[k].length > 1 ? "are" : "is"} in ${k === "early" ? "an early" : "a late"} layer. Neurons in ${EDGE_WHY[k]}`).join(" ");
 }
-export const recipeHtml = (ns, model) => sortNeurons(ns).map((n) => neuronHtml(n, model)).join(" ");
+export const INFO_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M8 7.3v4.2" stroke="var(--bg)" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="4.6" r="1.05" fill="var(--bg)"/></svg>`;
+// the yellow info mark with the warning on hover; empty when no neuron is near either end
+export function edgeMark(ns, model) {
+  const t = edgeTip(ns, model);
+  return t ? `<span class="edge" data-tip="${esc(t)}" aria-label="${esc(t)}" role="img">${INFO_ICON}</span>` : "";
+}
+
+export function neuronHtml(n) {
+  const d = n.dose;
+  return `<span class="k"><span class="ly">L${n.layer}</span>${n.expert != null ? "E" + n.expert : ""}N${n.neuron}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span>`;
+}
+export const recipeHtml = (ns) => sortNeurons(ns).map(neuronHtml).join(" ");
 
 // Parses "L13N7956-1.0 L14N8949+1" and the looser "L13 N7956 -1", "l14n8949 +0.5", "L11E11N1111+0.6".
 export function parseRecipeStr(s) {
