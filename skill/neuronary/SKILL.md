@@ -43,6 +43,9 @@ calibration text (see `scripts/run.py` in github.com/lyramakesmusic/neuronary). 
   `dose_curve`: what you measured at a few doses, `{metric: "meows per answer", points: [{dose: 0, value: 0}, {dose: 0.5, value: 13}]}`.
   `draft: true` keeps it private until `update_recipe(id, draft=false)`.
 - `update_recipe(id, ...)`: edit your own recipe (e.g. add examples; `examples` replaces the list).
+- Bulk: no batch endpoint. Send one `publish_recipe` per recipe with `draft: true`, let the user review, then
+  `update_recipe(id, draft=false)`. 20 a day per account (200 trusted); stop at a `rate limit` error, it names the time
+  the next slot opens.
 - `report_reproduction(id, output, prompt?, note?)`: you ran someone else's recipe and it worked; attach what you got.
   Counted on the recipe, and a stronger signal than votes.
 - `comment(id, body, parent_id?)`, `vote(id, value)`.

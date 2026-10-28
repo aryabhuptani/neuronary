@@ -63,7 +63,7 @@ function parseNeurons(s: string): Neuron[] {
 const SUMMARY = "id,name,description,model,neurons,method,sampling,tags,author_handle,author_url,source,date,created_at,origin,dose_curve,featured";
 function shape(r: Record<string, any>, stats: Record<string, any> | undefined, full = false) {
   const o: Record<string, unknown> = {
-    id: r.id, url: `${SITE}/#/r/${r.id}`, name: r.name, recipe: recipeStr(r.neurons), description: r.description,
+    id: r.id, url: `${SITE}/r/${r.id}`, name: r.name, recipe: recipeStr(r.neurons), description: r.description,
     model: r.model, neurons: sorted(r.neurons), tags: r.tags, author: r.author_handle, date: r.date,
     score: stats?.score ?? 0, comments: stats?.comments ?? 0, reproductions: stats?.reproductions ?? 0,
     reproductions_partial: stats?.repro_partial ?? 0, reproductions_failed: stats?.repro_failed ?? 0,
@@ -173,7 +173,7 @@ async function publish(u: User, body: Record<string, any>) {
   const row = { ...pick(body, false), user_id: me.id, author_handle: me.handle, author_url: me.url, origin: "site", hidden: false };
   const { data, error } = await sb.from("recipes").insert(row).select("id").single();
   if (error) throw new HttpError(/^rate limit/.test(error.message) ? 429 : 400, friendly(error.message));
-  return { id: data.id, url: `${SITE}/#/r/${data.id}` };
+  return { id: data.id, url: `${SITE}/r/${data.id}` };
 }
 
 async function edit(u: User, id: string, body: Record<string, any>) {
@@ -186,7 +186,7 @@ async function edit(u: User, id: string, body: Record<string, any>) {
   if (patch.examples !== undefined && !(patch.examples as unknown[]).length) throw new HttpError(400, "keep at least one example");
   const { error } = await sb.from("recipes").update({ ...patch, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new HttpError(400, friendly(error.message));
-  return { id, url: `${SITE}/#/r/${id}` };
+  return { id, url: `${SITE}/r/${id}` };
 }
 
 async function comment(u: User, id: string, body: { body?: string; parent_id?: number }) {
@@ -202,7 +202,7 @@ async function comment(u: User, id: string, body: { body?: string; parent_id?: n
   const { data, error } = await sb.from("comments").insert({ recipe_id: id, body: String(body.body), parent_id: body.parent_id ?? null,
     user_id: me.id, author_handle: me.handle }).select("id").single();
   if (error) throw new HttpError(400, error.message);
-  return { id: data.id, url: `${SITE}/#/r/${id}` };
+  return { id: data.id, url: `${SITE}/r/${id}` };
 }
 
 // "I ran it and it worked": the reproducer's own output, counted on the recipe
@@ -221,7 +221,7 @@ async function reproduce(u: User, id: string, body: { output?: string; prompt?: 
     prompt: body.prompt ? String(body.prompt) : null, note: body.note ? String(body.note) : null, setup: body.setup ? String(body.setup).slice(0, 200) : null };
   const { data, error } = await sb.from("reproductions").upsert(row, { onConflict: "recipe_id,user_id" }).select("id").single();
   if (error) throw new HttpError(400, error.message);
-  return { id: data.id, url: `${SITE}/#/r/${id}` };
+  return { id: data.id, url: `${SITE}/r/${id}` };
 }
 
 async function vote(u: User, id: string, value: number) {
@@ -246,7 +246,7 @@ const TOOLS = [
       limit: { type: "integer", minimum: 1, maximum: 100 } } } },
   { name: "get_recipe", description: "Get one recipe with its neurons, doses, method, recommended sampling and example outputs.",
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-  { name: "publish_recipe", description: "Publish a recipe as the token's owner. Dose units: act[n] += dose * median(||resid leaving layer L||) / ||W_down[:, n]|| at the input of mlp.down_proj, every token. Give neurons either as a list or as a recipe string like 'L13N7956-1.0 L14N8949+1.0'. At least one example (prompt + steered output) is required.",
+  { name: "publish_recipe", description: "Publish a recipe as the token's owner. Dose units: act[n] += dose * median(||resid leaving layer L||) / ||W_down[:, n]|| at the input of mlp.down_proj, every token. Give neurons either as a list or as a recipe string like 'L13N7956-1.0 L14N8949+1.0'. At least one example (prompt + steered output) is required. For a batch, call once per recipe with draft: true, let the user review, then publish each with update_recipe {id, draft: false}; 20 a day per account.",
     inputSchema: { type: "object", properties: {
       name: { type: "string" }, description: { type: "string" }, model: { type: "string" },
       recipe: { type: "string", description: "e.g. L13N7956-1.0 L14N8949+1.0" },
@@ -341,7 +341,7 @@ Deno.serve(async (req) => {
     } else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/comments$/)) && req.method === "POST") result = await comment(u, m[1], body);
     else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/reproductions$/)) && req.method === "POST") result = await reproduce(u, m[1], body);
     else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/vote$/)) && req.method === "POST") result = await vote(u, m[1], Number(body.value));
-    else throw new HttpError(404, "not found; see https://neuronary.org/#/about");
+    else throw new HttpError(404, "not found; see https://neuronary.org/about");
     return Response.json(result, { headers: { ...CORS, ...cache } });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;

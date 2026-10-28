@@ -55,6 +55,29 @@ class Neuronary:
         """name, description, model, recipe="L13N7956-1.0 ..." (or neurons=[...]), tags, examples, sampling?, source?, notes?"""
         return self._req("POST", "/recipes", recipe)
 
+    def publish_many(self, recipes, draft=False, dry_run=False):
+        """Publish a list of recipe dicts one at a time. Returns [{"name", "ok", "id"/"error"}] in order.
+        dry_run: only check each has the required fields. draft=True saves them privately (publish later with
+        update(id, draft=False)). Stops at the daily limit and reports when the next slot opens."""
+        need = ["name", "description", "model", "tags", "examples"]
+        out = []
+        for r in recipes:
+            missing = [k for k in need if not r.get(k)] + ([] if r.get("recipe") or r.get("neurons") else ["recipe or neurons"])
+            if missing:
+                out.append({"name": r.get("name"), "ok": False, "error": "missing " + ", ".join(missing)})
+                continue
+            if dry_run:
+                out.append({"name": r["name"], "ok": True})
+                continue
+            try:
+                res = self.publish(**r, **({"draft": True} if draft else {}))
+                out.append({"name": r["name"], "ok": True, "id": res["id"], "url": res.get("url")})
+            except NeuronaryError as e:
+                out.append({"name": r["name"], "ok": False, "error": str(e)})
+                if "rate limit" in str(e):
+                    break
+        return out
+
     def update(self, recipe_id, **fields):
         return self._req("PATCH", f"/recipes/{recipe_id}", fields)
 
