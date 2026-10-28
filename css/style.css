@@ -568,3 +568,11 @@ img.avatar, .about .shot img { outline: 1px solid var(--img-outline); outline-of
 .card, .list tr.row { -webkit-tap-highlight-color: transparent; }
 .card:active:not(:has(button:active, .edge:active)) { background: var(--raise); }
 html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh while a sheet is open */
+/* narrow phones (foldable covers, small iPhones): the search box gives way first, then the wordmark goes to the mark */
+.search, .search .box, #q { min-width: 0; }
+@media (max-width: 400px) {
+  header.top { gap: 10px; }
+  .top .right { gap: 10px; }
+  .brand { font-size: 0; gap: 0; }
+  .brand .mark { width: 22px; height: 20px; }
+}
