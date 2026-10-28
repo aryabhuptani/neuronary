@@ -447,6 +447,15 @@ class SupabaseStore {
     return data || [];
   }
 
+  // public profile by handle (avatar, X link, trusted) plus how many reproductions they've reported; null if no account
+  async profile_(handle) {
+    const [{ data: p }, { count }] = await Promise.all([
+      this.sb.from("profiles").select("handle,x_handle,avatar_url,trusted,is_admin,created_at").ilike("handle", handle.replace(/[\\%_]/g, (c) => "\\" + c)).maybeSingle(),
+      this.sb.from("reproductions").select("id", { count: "exact", head: true }).ilike("author_handle", handle.replace(/[\\%_]/g, (c) => "\\" + c)),
+    ]);
+    return { profile: p || null, reproductionsReported: count || 0 };
+  }
+
   async setHidden(id, hidden) {
     const { error } = await this.sb.from("recipes").update({ hidden }).eq("id", id);
     if (error) throw error;

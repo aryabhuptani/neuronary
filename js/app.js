@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027201029";
-import { createStore } from "./store.js?v=20261027201029";
+import { ABOUT_HTML } from "./about.js?v=20261027201604";
+import { createStore } from "./store.js?v=20261027201604";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027201029";
+} from "./format.js?v=20261027201604";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -16,7 +16,7 @@ let RECIPES = [];
 // ------------------------------------------------------------------ icons
 // share links (/r/<id>, /n/<neuron>) land on a static page; the app itself routes by hash
 {
-  const m = location.pathname.match(/^\/(r|n)\/([^/]+)\/?$/);
+  const m = location.pathname.match(/^\/(r|n|u)\/([^/]+)\/?$/);
   if (m) history.replaceState(null, "", "/" + location.search + "#/" + m[1] + "/" + m[2]);
 }
 
@@ -64,6 +64,7 @@ function parseHash(hash) {
   if (parts[0] === "r" && parts[1]) return { view: "recipe", id: parts[1], p };
   if (parts[0] === "submit") return { view: "submit-legacy", p };
   if (parts[0] === "n" && parts[1]) return { view: "neuron", key: parts[1], p };
+  if (parts[0] === "u" && parts[1]) return { view: "user", handle: parts[1], p };
   if (parts[0] === "about") return { view: "about", p };
   return { view: "notfound", p };
 }
@@ -104,6 +105,7 @@ async function route() {
   if (r.view === "submit-legacy") { history.replaceState(null, "", "#/"); route(); return openEditor(); }
   if (r.view === "about") { document.body.className = "page"; document.title = "About · neuronary"; main.innerHTML = ABOUT_HTML; scrollTo(0, 0); return; }
   if (r.view === "neuron") { document.body.className = ""; listShown = true; lastListHash = location.hash; return renderNeuron(r.key); }
+  if (r.view === "user") { document.body.className = ""; listShown = true; lastListHash = location.hash; return renderUser(r.handle, r.p); }
   document.body.className = "page";
   main.innerHTML = `<div class="empty">Nothing here. <a href="#/">neuronary</a></div>`;
 }
@@ -125,7 +127,8 @@ const tagHref = (t) => browseHref({ tags: [t] });
 const tagsHtml = (tags, on = []) => tags.map((t) => `<a class="tag ${on.includes(t) ? "on" : ""}" href="${tagHref(t)}">${esc(t)}</a>`).join("");
 const shortModel = (m) => m.split("/").pop();
 const isTrusted = (h) => !!(store.trusted && store.trusted.has(h));
-const whoHtml = (h) => `<span class="who${isTrusted(h) ? " trusted" : ""}"${isTrusted(h) ? ' title="trusted publisher"' : ""}>@${esc(h)}</span>`;
+const userHref = (h) => `#/u/${encodeURIComponent(h)}`;
+const whoHtml = (h) => `<a class="who${isTrusted(h) ? " trusted" : ""}" href="${userHref(h)}"${isTrusted(h) ? ' title="trusted publisher"' : ""}>@${esc(h)}</a>`;
 
 function cardHtml(r, on) {
   return `<article class="card" data-open="${esc(r.id)}">
@@ -198,7 +201,7 @@ document.addEventListener("click", (e) => {
     doVote(vb.closest("[data-vote]").dataset.vote, +vb.dataset.v);
     return;
   }
-  const op = e.target.closest("[data-open]");
+  const op = !e.target.closest("a:not(.cardlink):not(.rowlink)") && e.target.closest("[data-open]"); // other links in a card (the author) go where they point
   if (op && listShown && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) {
     e.preventDefault();
     modalPushed = true;
@@ -650,6 +653,45 @@ function renderNeuron(key) {
     ${uses.length ? `<div class="grid">${uses.map((r) => cardHtml(r, [])).join("")}</div>` : `<div class="empty">No recipes use ${k} yet.</div>`}`;
 }
 
+// ------------------------------------------------------------------ profile (#/u/<handle>)
+async function renderUser(handle, params) {
+  const p = Object.fromEntries(params.entries());
+  const sort = ["hot", "top", "new"].includes(p.sort) ? p.sort : "top";
+  const lc = handle.toLowerCase();
+  const u = store.user();
+  const mine = u && u.handle && u.handle.toLowerCase() === lc;
+  const all = RECIPES.filter((r) => r.author.handle.toLowerCase() === lc && (mine || (!r.hidden && !r.draft)));
+  const rs = sortRecipes(all, sort);
+  const pub = all.filter((r) => !r.hidden && !r.draft);
+  const shown = (all[0] && all[0].author.handle) || handle;
+  document.title = `@${shown} · neuronary`;
+  const draw = (prof, reported) => {
+    const xh = prof && prof.x_handle;
+    // recipes added on someone's behalf carry their X link on the recipe itself
+    const xurl = xh ? `https://x.com/${xh}` : (all.find((r) => /^https:\/\/(x|twitter)\.com\/[A-Za-z0-9_]+\/?$/.test(r.author.url || "")) || {}).author?.url;
+    const score = pub.reduce((a, r) => a + r.score, 0), repro = pub.reduce((a, r) => a + (r.reproductions || 0), 0);
+    const stat = (n, label) => `<div class="ustat"><b>${n}</b><span>${label}</span></div>`;
+    main.innerHTML = `<div class="uhead">
+        ${avatarHtml(shown, prof && prof.avatar_url, "big")}
+        <div class="uid">
+          <h1>@${esc(shown)}${isTrusted(shown) ? ` <span class="ubadge" title="trusted publisher: higher daily limit">trusted</span>` : ""}${prof && prof.is_admin ? ` <span class="ubadge">admin</span>` : ""}</h1>
+          <div class="ulinks">${xurl ? `<a class="btn sbtn" href="${esc(xurl)}" target="_blank" rel="noopener">${I.x}<span>@${esc(xurl.split("/").pop())} on X</span></a>` : ""}
+            <a class="dim" href="${browseHref({ author: shown })}">filter the main list by @${esc(shown)}</a>
+            ${!prof && !all.length ? `<span class="dim">no account or recipes under this name</span>` : ""}
+            ${prof && prof.created_at ? `<span class="faint">joined ${esc(new Date(prof.created_at).toLocaleDateString([], { month: "short", year: "numeric" }))}</span>` : ""}</div>
+        </div>
+        <div class="ustats">${stat(pub.length, pub.length === 1 ? "recipe" : "recipes")}${stat(score, "total score")}${stat(repro, "reproduced by others")}${stat(reported, "reproductions reported")}</div>
+      </div>
+      <div class="toolbar"><span class="seg" id="usort">${["top", "hot", "new"].map((s) => `<button data-usort="${s}" class="${s === sort ? "on" : ""}">${s}</button>`).join("")}</span></div>
+      ${rs.length ? `<div class="grid">${rs.map((r) => cardHtml(r, [])).join("")}</div>` : `<div class="empty">No recipes yet.</div>`}`;
+    $$("[data-usort]").forEach((b) => (b.onclick = () => go(`${userHref(shown)}${b.dataset.usort === "top" ? "" : "?sort=" + b.dataset.usort}`)));
+  };
+  draw(null, 0);
+  if (store.profile_) {
+    try { const { profile, reproductionsReported } = await store.profile_(handle); if (parseRoute().view === "user") draw(profile, reproductionsReported); } catch (e) { console.error(e); }
+  }
+}
+
 // ------------------------------------------------------------------ browse
 let openDd = null;
 let filtersOpen = false; // mobile: filter dropdowns collapsed behind the funnel icon
@@ -860,7 +902,7 @@ function recipeHtmlBlock(r, { modal }) {
       ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${[...ingredients.map((x) => `<a href="#/r/${esc(x.id)}">${esc(x.name)}</a>`),
         ...leftover.map((n) => `<a href="#/n/${neuronKey(n)}" class="mono" title="no recipe posted for this neuron alone">${neuronKey(n)}</a>`)].join(` <span class="dim">+</span> `)}
         ${doseDiffs.length ? `<div class="dim combonote">different doses: ${esc(doseDiffs.join("; "))}</div>` : ""}</div>` : ""}
-      <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>`}${r.reproductions ? ` &nbsp;·&nbsp; <span class="repro">${I.repro} reproduced by ${r.reproductions}</span>` : ""}
+      <div class="meta"><a href="${userHref(r.author.handle)}"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>${r.reproductions ? ` &nbsp;·&nbsp; <span class="repro">${I.repro} reproduced by ${r.reproductions}</span>` : ""}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
         ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}
 </div>
@@ -1210,7 +1252,7 @@ async function renderComments(root, r) {
   const top = list.filter((c) => !c.parent_id);
   const kids = (id) => list.filter((c) => c.parent_id === id);
   const one = (c) => `<li data-cid="${c.id}"${c.hidden ? ' style="opacity:.45"' : ""}>${avatarHtml(c.handle, c.avatar_url)}<div>
-      <div class="h"><b>${esc(c.handle)}</b><span>${esc(ago(c.created_at))}</span></div>
+      <div class="h"><a class="cauthor" href="${userHref(c.handle)}"><b>${esc(c.handle)}</b></a><span>${esc(ago(c.created_at))}</span></div>
       <div class="b">${esc(c.body)}</div>
       <div class="act">${!c.parent_id ? `<button data-reply="${c.id}">reply</button>` : ""}${(u && u.handle === c.handle) || (u && u.admin) ? `<button data-del="${c.id}">delete</button>` : ""}${u && u.admin && store.mode === "supabase" ? `<button data-hide="${c.id}" data-h="${c.hidden ? 0 : 1}">${c.hidden ? "unhide" : "hide"}</button>` : ""}${store.mode === "supabase" && !(u && u.handle === c.handle) ? `<button data-rep="${c.id}">report</button>` : ""}</div>
       ${!c.parent_id ? `<ul>${kids(c.id).map(one).join("")}</ul><div data-replybox="${c.id}"></div>` : ""}</div></li>`;
