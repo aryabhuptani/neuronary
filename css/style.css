@@ -576,3 +576,14 @@ html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh
   .brand { font-size: 0; gap: 0; }
   .brand .mark { width: 22px; height: 20px; }
 }
+
+/* submit page: import button, quota line, batch import list, publish confirmation */
+.subhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.importbtn { cursor: pointer; }
+.importnote { font-size: 12px; margin: -6px 0 14px; }
+.quota { font-size: 12.5px; margin-top: 10px; }
+.batch .blist { margin: 16px 0 20px; padding-left: 22px; display: grid; gap: 6px; font-size: 13.5px; }
+.batch .blist li { display: flex; gap: 12px; justify-content: space-between; }
+.batch .bs { font-size: 12.5px; text-align: right; }
+.okflash { position: fixed; bottom: 16px; left: 50%; translate: -50% 0; z-index: 60; padding: 8px 14px; border-radius: 4px;
+  background: var(--ink); color: var(--bg); font-size: 13px; box-shadow: var(--shadow); }

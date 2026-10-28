@@ -354,6 +354,14 @@ class SupabaseStore {
     if (!data || !data.length) throw new Error("not allowed to delete this recipe");
   }
 
+  // {limit, used, next_at} for today's publishing; limit null = no limit
+  async quota() {
+    if (!this.session) return null;
+    const { data, error } = await this.sb.rpc("my_recipe_quota");
+    if (error) return null;
+    return data;
+  }
+
   async setHidden(id, hidden) {
     const { error } = await this.sb.from("recipes").update({ hidden }).eq("id", id);
     if (error) throw error;

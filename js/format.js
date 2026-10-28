@@ -3,7 +3,8 @@
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 export function doseStr(d) {
-  let s = (d >= 0 ? "+" : "-") + Math.abs(d).toFixed(2).replace(/0+$/, "");
+  // up to 4 decimals, as stored (0.525 stays 0.525), at least one (1 -> 1.0)
+  let s = (d >= 0 ? "+" : "-") + Math.abs(d).toFixed(4).replace(/0+$/, "");
   if (s.endsWith(".")) s += "0";
   return s;
 }

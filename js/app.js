@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027173521";
-import { createStore } from "./store.js?v=20261027173521";
+import { ABOUT_HTML } from "./about.js?v=20261027180706";
+import { createStore } from "./store.js?v=20261027180706";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027173521";
+} from "./format.js?v=20261027180706";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -1053,7 +1053,7 @@ function recipeToDraft(r) {
     name: r.name, description: r.description, model: r.model, tags: [...r.tags],
     neurons: sortNeurons(r.neurons).map((n) => ({ layer: String(n.layer), neuron: String(n.neuron), dose: String(n.dose), ...(n.expert != null ? { expert: String(n.expert) } : {}) })),
     op: (r.method && r.method.op) || "add", rep: s.repetition_penalty ?? "", temp: s.temperature ?? "",
-    examples: (r.examples && r.examples.length ? r.examples : [{ prompt: "", output: "" }]).map((e) => ({ prompt: e.prompt, output: e.output, base_output: e.base_output || "" })),
+    examples: (r.examples && r.examples.length ? r.examples : [{ prompt: "", output: "" }]).map((e) => ({ prompt: e.prompt || "", output: e.output || "", base_output: e.base_output || "" })),
     source: r.source || "", notes: r.notes || "", _orig: { method: r.method || null, sampling: r.sampling || null, conditional: r.conditional || null, aliases: r.aliases || [], examples: r.examples || [] },
   };
 }
@@ -1147,6 +1147,55 @@ function validate(d) {
   return errs;
 }
 
+// Publishes an array of recipes one by one, showing each one's result. Invalid ones are skipped with the reason.
+async function renderBatch(list) {
+  const gen = ++submitGen;
+  const items = list.map((o, i) => {
+    const d = { ...emptyDraft(), ...(o && Array.isArray(o.neurons) ? recipeToDraft({ name: "", description: "", tags: [], examples: [], model: "Qwen/Qwen3.5-4B", ...o }) : {}) };
+    const errs = o && Array.isArray(o.neurons) ? validate(d) : { file: "not a recipe" };
+    return { i, name: (o && o.name) || `#${i + 1}`, d, errs: Object.entries(errs).map(([k, v]) => `${k}: ${v}`) };
+  });
+  const ok = items.filter((x) => !x.errs.length);
+  main.innerHTML = `<div class="submit"><div class="panel batch">
+    <h1>Import ${items.length} recipe${items.length === 1 ? "" : "s"}</h1>
+    <p class="dim">${ok.length} ready${items.length - ok.length ? `, ${items.length - ok.length} with problems (skipped)` : ""}. Each one is published under your name and goes through moderation like any other.</p>
+    <ol class="blist">${items.map((x) => `<li data-bi="${x.i}"><span class="bn">${esc(x.name)}</span><span class="bs ${x.errs.length ? "err" : "dim"}">${x.errs.length ? esc(x.errs.join("; ")) : "ready"}</span></li>`).join("")}</ol>
+    <div class="pub"><button class="btn primary" data-bgo ${ok.length ? "" : "disabled"}>Publish ${ok.length}</button><button class="btn" data-bcancel>Back to the form</button></div>
+    <p class="dim quota" data-bsum role="status"></p>
+  </div></div>`;
+  $("[data-bcancel]").onclick = () => renderSubmit();
+  $("[data-bgo]").onclick = async (e) => {
+    if (!signedIn() && store.mode === "supabase") return signInPrompt("publish");
+    const go = e.currentTarget; go.disabled = true;
+    $("[data-bcancel]").disabled = true;
+    let done = 0, failed = 0;
+    for (const x of ok) {
+      if (gen !== submitGen) return;
+      const st = $(`[data-bi="${x.i}"] .bs`);
+      st.className = "bs dim"; st.textContent = "publishing…";
+      try {
+        const id = await store.submit(draftToRecipe(x.d, "new"));
+        st.innerHTML = `<a href="#/r/${esc(id)}">published</a>`; done++;
+      } catch (err) {
+        st.className = "bs err"; st.textContent = errText(err); failed++;
+        if (/rate limit/.test(String(err.message || err))) break;
+      }
+      go.textContent = `Published ${done} of ${ok.length}`;
+    }
+    RECIPES = await store.list();
+    $("[data-bsum]").textContent = `Done: ${done} published${failed ? `, ${failed} failed` : ""}.`;
+    $("[data-bcancel]").disabled = false;
+    $("[data-bcancel]").textContent = "Back to the form";
+  };
+}
+
+function flashOk(text) {
+  const m = document.createElement("div");
+  m.className = "okflash"; m.setAttribute("role", "status"); m.textContent = text;
+  document.body.appendChild(m);
+  setTimeout(() => m.remove(), 4000);
+}
+
 let submitGen = 0;
 function renderSubmit() {
   const gen = ++submitGen;
@@ -1158,28 +1207,25 @@ function renderSubmit() {
 
   main.innerHTML = `<div class="submit">
     <div class="panel">
-      <h1>${editing ? "Edit recipe" : "New recipe"}</h1>
+      <div class="subhead"><h1>${editing ? "Edit recipe" : "New recipe"}</h1>${editing ? "" : `<label class="btn sbtn importbtn"><span>Import JSON</span><input type="file" accept=".json,application/json" data-importfile hidden></label>`}</div>
+      ${editing ? "" : `<p class="dim importnote">Import a recipe file, a Neuron Studio export, or a JSON array of recipes to publish as a batch.</p>`}
       ${!editing && store.mode === "supabase" && !signedIn() ? `<div class="signnote"><span>Sign in to publish. Your draft is kept while you do.</span><button class="btn sbtn" data-signin-top>Sign in</button></div>` : ""}
       <label class="f" data-f="name"><span>name</span><input data-k="name" value="${esc(d.name)}" maxlength="80"></label>
       <label class="f" data-f="description"><span>description</span><textarea data-k="description" maxlength="600">${esc(d.description)}</textarea></label>
-      <div class="f" data-f="tags"><span>tags</span><div class="tagin" data-tagin>${d.tags.map((t) => `<span class="tag">${esc(t)}<button data-rmtag="${esc(t)}" aria-label="remove">×</button></span>`).join("")}
-        <input data-tagtext placeholder="${d.tags.length ? "" : "persona, style, …"}" autocomplete="off"><div class="suggest" data-tagsug hidden></div></div></div>
+      <div class="f" data-f="tags"><span id="lab-tags">tags</span><div class="tagin" data-tagin><span class="chips" data-chips></span>
+        <input data-tagtext aria-labelledby="lab-tags" placeholder="persona, style, …" autocomplete="off"><div class="suggest" data-tagsug hidden></div></div></div>
       <label class="f" data-f="model"><span>model</span><input data-k="model" value="${esc(d.model)}" list="models" spellcheck="false" class="mono">
         <datalist id="models">${models.map((m) => `<option value="${esc(m)}">`).join("")}</datalist></label>
       <div class="f" data-f="neurons"><span>neurons</span>
-        <input data-paste placeholder="paste: L13N7956-1.0 L14N8949+1.0" class="mono" spellcheck="false" style="width:100%;margin-bottom:10px">
-        <div class="nrows">${d.neurons.map((n, i) => `<div class="nr" data-i="${i}">
-          <input data-n="layer" value="${esc(n.layer)}" placeholder="layer" inputmode="numeric">
-          <input data-n="neuron" value="${esc(n.neuron)}" placeholder="neuron" inputmode="numeric">
-          <input data-n="dose" value="${esc(n.dose)}" placeholder="dose" inputmode="decimal" class="${Number(n.dose) > 0 ? "up" : Number(n.dose) < 0 ? "down" : ""}">
-          <button class="x" data-rmn="${i}" aria-label="remove">×</button></div>`).join("")}</div>
+        <input data-paste aria-label="paste a recipe string" placeholder="paste: L13N7956-1.0 L14N8949+1.0" class="mono" spellcheck="false" style="width:100%;margin-bottom:10px">
+        <div class="nrows" data-nrows></div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><button class="addlink" data-addn>+ neuron</button>
-        <span class="seg" data-op><button class="${d.op !== "mul" ? "on" : ""}" data-op-v="add">add</button><button class="${d.op === "mul" ? "on" : ""}" data-op-v="mul">multiply</button></span></div>
+        <span class="seg" data-op role="group" aria-label="method"><button class="${d.op !== "mul" ? "on" : ""}" data-op-v="add">add</button><button class="${d.op === "mul" ? "on" : ""}" data-op-v="mul">multiply</button></span></div>
       </div>
       <div class="f" data-f="sampling"><span>recommended sampling <span class="faint">optional</span></span>
         <div style="display:flex;gap:8px">
-          <input data-k="rep" value="${esc(d.rep)}" placeholder="rep pen, e.g. 1.1" inputmode="decimal" class="mono" style="flex:1">
-          <input data-k="temp" value="${esc(d.temp)}" placeholder="temperature (0 = greedy)" inputmode="decimal" class="mono" style="flex:1">
+          <input data-k="rep" aria-label="repetition penalty" value="${esc(d.rep)}" placeholder="rep pen, e.g. 1.1" inputmode="decimal" class="mono" style="flex:1">
+          <input data-k="temp" aria-label="temperature" value="${esc(d.temp)}" placeholder="temperature (0 = greedy)" inputmode="decimal" class="mono" style="flex:1">
         </div></div>
       <label class="f"><span>source link</span><input data-k="source" value="${esc(d.source)}" placeholder="https://x.com/…" spellcheck="false"></label>
       <label class="f"><span>notes</span><textarea data-k="notes" placeholder="how you found it, what breaks it, doses that also work">${esc(d.notes)}</textarea></label>
@@ -1196,6 +1242,7 @@ function renderSubmit() {
       <div class="preview"><div class="dim" style="font-size:12px;margin-bottom:6px">recipe</div><div class="rid" data-preview></div></div>
       <div data-errsum class="err"></div>
       <div class="pub" data-pub></div>
+      <p class="dim quota" data-quota hidden></p>
     </div>
   </div>`;
 
@@ -1217,21 +1264,33 @@ function renderSubmit() {
   };
 
   $$("[data-k]").forEach((el) => (el.oninput = () => { d[el.dataset.k] = el.value; save(); }));
-  $$(".nr").forEach((row) => $$("[data-n]", row).forEach((el) => (el.oninput = () => {
-    d.neurons[+row.dataset.i][el.dataset.n] = el.value.trim();
-    if (el.dataset.n === "dose") el.className = Number(el.value) > 0 ? "up" : Number(el.value) < 0 ? "down" : "";
-    save(); refreshPreview();
-  })));
-  $$("[data-rmn]").forEach((b) => (b.onclick = () => { d.neurons.splice(+b.dataset.rmn, 1); if (!d.neurons.length) d.neurons.push({ layer: "", neuron: "", dose: "" }); save(); renderSubmit(); }));
-  $("[data-addn]").onclick = () => { d.neurons.push({ layer: "", neuron: "", dose: "" }); save(); renderSubmit(); $$(".nr input")[d.neurons.length * 3 - 3].focus(); };
-  $$("[data-op-v]").forEach((b) => (b.onclick = () => { d.op = b.dataset.opV; save(); renderSubmit(); }));
+  // Neuron rows and tag chips re-render on their own; the rest of the form (and any input you hold) stays put.
+  const nrows = $("[data-nrows]");
+  const renderNeurons = () => {
+    nrows.innerHTML = d.neurons.map((n, i) => `<div class="nr" data-i="${i}">
+      <input data-n="layer" aria-label="neuron ${i + 1} layer" value="${esc(n.layer)}" placeholder="layer" inputmode="numeric">
+      <input data-n="neuron" aria-label="neuron ${i + 1} index" value="${esc(n.neuron)}" placeholder="neuron" inputmode="numeric">
+      <input data-n="dose" aria-label="neuron ${i + 1} dose" value="${esc(n.dose)}" placeholder="dose" inputmode="decimal" class="${Number(n.dose) > 0 ? "up" : Number(n.dose) < 0 ? "down" : ""}">
+      <button class="x" data-rmn="${i}" aria-label="remove neuron ${i + 1}">×</button></div>`).join("");
+    $$(".nr", nrows).forEach((row) => $$("[data-n]", row).forEach((el) => (el.oninput = () => {
+      d.neurons[+row.dataset.i][el.dataset.n] = el.value.trim();
+      if (el.dataset.n === "dose") el.className = Number(el.value) > 0 ? "up" : Number(el.value) < 0 ? "down" : "";
+      save(); refreshPreview();
+    })));
+    $$("[data-rmn]", nrows).forEach((b) => (b.onclick = () => { d.neurons.splice(+b.dataset.rmn, 1); if (!d.neurons.length) d.neurons.push({ layer: "", neuron: "", dose: "" }); save(); renderNeurons(); }));
+    refreshPreview();
+  };
+  renderNeurons();
+  $("[data-addn]").onclick = () => { d.neurons.push({ layer: "", neuron: "", dose: "" }); save(); renderNeurons(); $$(".nr input", nrows)[d.neurons.length * 3 - 3].focus(); };
+  $$("[data-op-v]").forEach((b) => (b.onclick = () => { d.op = b.dataset.opV; save(); $$("[data-op-v]").forEach((x) => x.classList.toggle("on", x === b)); }));
   const pasteIn = $("[data-paste]");
   const takePaste = (text) => {
     if (!live()) return;
     const ns = parseRecipeStr(text).filter((n) => Number.isFinite(n.dose));
     if (!ns.length) return;
     d.neurons = ns.map((n) => ({ layer: String(n.layer), neuron: String(n.neuron), dose: String(n.dose), ...(n.expert != null ? { expert: String(n.expert) } : {}) }));
-    save(); renderSubmit();
+    pasteIn.value = "";
+    save(); renderNeurons();
   };
   pasteIn.onpaste = (e) => { e.preventDefault(); takePaste(e.clipboardData.getData("text")); };
   pasteIn.onchange = () => takePaste(pasteIn.value);
@@ -1243,13 +1302,25 @@ function renderSubmit() {
   // tags
   const tin = $("[data-tagtext]");
   const tsug = $("[data-tagsug]");
-  const addTag = (t) => {
-    if (!live()) return;
-    t = slugify(t).slice(0, 32);
-    if (t && !d.tags.includes(t) && d.tags.length < 12) d.tags.push(t);
-    save(); renderSubmit(); $("[data-tagtext]").focus();
+  const chips = $("[data-chips]");
+  const renderChips = () => {
+    chips.innerHTML = d.tags.map((t) => `<span class="tag">${esc(t)}<button data-rmtag="${esc(t)}" aria-label="remove tag ${esc(t)}">×</button></span>`).join("");
+    $$("[data-rmtag]", chips).forEach((b) => (b.onclick = (e) => { e.preventDefault(); d.tags = d.tags.filter((t) => t !== b.dataset.rmtag); save(); renderChips(); }));
+    tin.placeholder = d.tags.length ? "" : "persona, style, …";
   };
+  // "a, b, c" adds three tags
+  const addTag = (text, refocus = true) => {
+    if (!live()) return;
+    for (let t of String(text).split(",")) {
+      t = slugify(t).slice(0, 32);
+      if (t && !d.tags.includes(t) && d.tags.length < 12) d.tags.push(t);
+    }
+    tin.value = ""; tsug.hidden = true;
+    save(); renderChips(); if (refocus) tin.focus();
+  };
+  renderChips();
   tin.oninput = () => {
+    if (tin.value.includes(",")) { const parts = tin.value.split(","); const rest = parts.pop(); addTag(parts.join(",")); tin.value = rest.trimStart(); }
     const s = slugify(tin.value);
     const opts = Object.keys(tc).filter((t) => t.includes(s) && !d.tags.includes(t)).sort((a, b) => tc[b] - tc[a]).slice(0, 6);
     tsug.hidden = !tin.value.trim() || !opts.length;
@@ -1257,22 +1328,21 @@ function renderSubmit() {
   };
   tin.onkeydown = (e) => {
     if ((e.key === "Enter" || e.key === ",") && tin.value.trim()) { e.preventDefault(); addTag(tin.value); }
-    if (e.key === "Backspace" && !tin.value && d.tags.length) { d.tags.pop(); save(); renderSubmit(); $("[data-tagtext]").focus(); }
+    if (e.key === "Backspace" && !tin.value && d.tags.length) { d.tags.pop(); save(); renderChips(); }
   };
-  tin.onblur = () => setTimeout(() => { tsug.hidden = true; if (tin.value.trim()) addTag(tin.value); }, 150);
+  tin.onblur = () => setTimeout(() => { tsug.hidden = true; if (tin.value.trim()) addTag(tin.value, false); }, 150);
   tsug.onmousedown = (e) => { const row = e.target.closest("[data-t]"); if (row) { e.preventDefault(); tin.value = ""; addTag(row.dataset.t); } };
-  $$("[data-rmtag]").forEach((b) => (b.onclick = (e) => { e.preventDefault(); d.tags = d.tags.filter((t) => t !== b.dataset.rmtag); save(); renderSubmit(); }));
 
-  // import
-  const drop = $("[data-drop]");
-  const fileIn = drop && $("input[type=file]", drop);
+  // import: one recipe (or a Neuron Studio export) fills the form; an array publishes as a batch
   const importText = (text) => {
     let o;
-    try { o = JSON.parse(text); } catch { return flashError(new Error("not JSON")); }
+    try { o = JSON.parse(text); } catch { return flashError(new Error("That file isn't JSON.")); }
+    const list = Array.isArray(o) ? o : Array.isArray(o && o.recipes) ? o.recipes : null;
+    if (list) return renderBatch(list);
     const st = fromStudio(o);
     const src = st || (Array.isArray(o.neurons) ? o : null);
-    if (!src) return flashError(new Error("not a Neuron Studio or recipe file"));
-    d.neurons = src.neurons.map((n) => ({ layer: String(n.layer), neuron: String(n.neuron), dose: String(n.dose) }));
+    if (!src) return flashError(new Error("Not a recipe, a recipe array, or a Neuron Studio file."));
+    d.neurons = src.neurons.map((n) => ({ layer: String(n.layer), neuron: String(n.neuron), dose: String(n.dose), ...(n.expert != null ? { expert: String(n.expert) } : {}) }));
     if (src.model) d.model = src.model;
     d.op = src.method && src.method.op === "mul" ? "mul" : "add";
     if (!st) {
@@ -1283,12 +1353,17 @@ function renderSubmit() {
     }
     save(); renderSubmit();
   };
-  if (drop) {
-  fileIn.onchange = () => fileIn.files[0] && fileIn.files[0].text().then(importText);
-  drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
-  drop.ondragleave = () => drop.classList.remove("over");
-  drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) f.text().then(importText); };
-  }
+  const fileIn = $("[data-importfile]");
+  if (fileIn) fileIn.onchange = () => { const f = fileIn.files[0]; fileIn.value = ""; if (f) f.text().then(importText); };
+
+  // how many recipes are left today
+  const quotaEl = $("[data-quota]");
+  if (!editing && store.quota && signedIn()) store.quota().then((q) => {
+    if (!live() || !q || q.limit == null) return;
+    const left = Math.max(0, q.limit - q.used);
+    quotaEl.textContent = left ? `${left} of ${q.limit} left today.` : errText(new Error(`rate limit: ${q.limit} recipes a day${q.next_at ? "; next one at " + q.next_at : ""}`)).replace(" Your draft is saved.", "");
+    quotaEl.hidden = false;
+  });
 
   // publish slot
   const pub = $("[data-pub]");
@@ -1349,6 +1424,7 @@ function renderSubmit() {
       RECIPES = await store.list();
       editorOpen = false;
       location.hash = "#/r/" + id;
+      flashOk(`Published “${r.name}”.`);
     } catch (err) {
       console.error(err);
       b.disabled = false; b.textContent = "Publish";

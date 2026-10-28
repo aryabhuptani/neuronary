@@ -13,6 +13,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const tag = Math.random().toString(16).slice(2, 7);
 const handle = `e2e_${tag}`;
 let rid = null; // assigned by the database on publish
+let batchIds = []; // from the batch-import step
 const fails = [];
 const check = (name, ok, detail = "") => { console.log((ok ? "ok   " : "FAIL ") + name + (!ok && detail ? `  [${detail}]` : "")); if (!ok) fails.push(name); };
 
@@ -94,6 +95,7 @@ try {
   check("publish lands on the recipe", await waitFor(() => /^#\/r\/[a-z0-9]{8}$/.test(location.hash), 10000), await page.evaluate(() => location.hash));
   rid = (await page.evaluate(() => location.hash)).slice(4);
   check("recipe page shows sampling", await waitFor(() => /rep pen 1\.1/.test(document.body.textContent)));
+  check("publish says so", await waitFor(() => /Published/.test(document.querySelector(".okflash")?.textContent || ""), 5000));
   check("author is the picked name", await waitFor((h) => document.querySelector(".meta")?.textContent.includes("@" + h), 8000, handle));
   await shot("published");
 
@@ -106,6 +108,42 @@ try {
   check("edit saves", await waitFor((t) => document.querySelector("h1")?.textContent === `E2E edited ${t}`, 10000, tag));
   check("edit kept the id", await page.evaluate(() => location.hash) === `#/r/${rid}`);
 
+  // the form keeps its inputs (no full re-render on tag/neuron changes); comma tags; quota line; batch import
+  await page.keyboard.press("Escape");
+  await waitFor(() => !document.querySelector(".modal"), 5000);
+  await page.click("[data-submit]");
+  await waitFor(() => !!document.querySelector('[data-k="name"]'));
+  await page.evaluate(() => { window.__nameEl = document.querySelector('[data-k="name"]'); });
+  await page.type("[data-tagtext]", "alpha, beta, gamma");
+  await page.click('[data-k="description"]');
+  await page.type("[data-paste]", "L10N5+0.525");
+  await page.keyboard.press("Enter");
+  await sleep(200);
+  check("comma-separated tags become chips", await waitFor(() => document.querySelectorAll("[data-chips] .tag").length === 3, 3000),
+    await page.evaluate(() => document.querySelector("[data-chips]")?.textContent));
+  check("inputs survive tag/neuron edits", await page.evaluate(() => window.__nameEl.isConnected));
+  check("dose shows 3 decimals", await page.evaluate(() => /\+0\.525/.test(document.querySelector("[data-preview]").textContent)));
+  check("quota line", await waitFor(() => /left today/.test(document.querySelector("[data-quota]")?.textContent || ""), 8000),
+    await page.evaluate(() => document.querySelector("[data-quota]")?.textContent));
+  check("fields have accessible names", await page.evaluate(() => [...document.querySelectorAll(".submit input:not([type=file]), .submit textarea")]
+    .every((el) => el.labels?.length || el.getAttribute("aria-label") || el.getAttribute("aria-labelledby"))));
+  const batch = [1, 2].map((i) => ({ name: `E2E batch ${i} ${tag}`, description: "batch import test", model: "Qwen/Qwen3.5-4B", tags: ["test"],
+    neurons: [{ layer: 9, neuron: 1000 + i, dose: 0.5 }], examples: [{ prompt: "Hi", output: "Hello." }] }));
+  batch.push({ name: "broken", neurons: [] });
+  const fs = await import("fs");
+  const bf = "C:/Users/Lyra/AppData/Local/Temp/e2e_batch.json";
+  fs.writeFileSync(bf, JSON.stringify(batch));
+  const fin = await page.$("[data-importfile]");
+  await fin.uploadFile(bf);
+  check("batch import lists items", await waitFor(() => document.querySelectorAll(".blist li").length === 3, 3000));
+  await page.click("[data-bgo]");
+  check("batch publishes the valid ones", await waitFor(() => /Done: 2 published/.test(document.querySelector("[data-bsum]")?.textContent || ""), 20000),
+    await page.evaluate(() => document.querySelector("[data-bsum]")?.textContent + " " + document.querySelector(".blist")?.textContent));
+  batchIds = await page.evaluate(() => [...document.querySelectorAll(".blist a")].map((a) => a.getAttribute("href").slice(4)));
+  await page.click("[data-bcancel]");
+  await page.goto(BASE + "#/r/" + rid, { waitUntil: "networkidle0" });
+  await waitFor(() => !!document.querySelector('.ractions [data-ract="delete"]'), 10000);
+
   // delete
   await page.click('.ractions [data-ract="delete"]');
   check("delete goes back to browse", await waitFor(() => location.hash === "#/", 10000));
@@ -117,6 +155,7 @@ try {
     const h = { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` };
     await fetch(`${SB}/rest/v1/recipes?id=eq.${FIX}`, { method: "DELETE", headers: h });
     if (rid) await fetch(`${SB}/rest/v1/recipes?id=eq.${rid}`, { method: "DELETE", headers: h });
+    for (const b of batchIds) await fetch(`${SB}/rest/v1/recipes?id=eq.${b}`, { method: "DELETE", headers: h });
     if (userId) {
       await fetch(`${SB}/rest/v1/comments?user_id=eq.${userId}`, { method: "DELETE", headers: h });
       const r = await fetch(`${SB}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: h });
