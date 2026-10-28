@@ -1,0 +1,27 @@
+name: share pages
+# Rebuilds r/<id>/index.html (per-recipe link previews) from the public API.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  push:
+    branches: [main]
+    paths: ["index.html", "scripts/build_share_pages.py"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: share-pages
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python scripts/build_share_pages.py
+      - name: commit if changed
+        run: |
+          git add -A r
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          git -c user.name="neuronary bot" -c user.email="actions@users.noreply.github.com" commit -m "share pages"
+          git pull --rebase
+          git push

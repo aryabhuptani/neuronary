@@ -1,0 +1,83 @@
+// Social preview card for one recipe: GET /og?id=<recipe id>  ->  1200x630 PNG
+// Name, neuron chips (layer bold, dose colored) and a base -> steered line from the first example that has both.
+// Hidden recipes and drafts get the generic site card. Used by the share-link Worker (cloudflare/share-worker.js).
+import { ImageResponse } from "https://deno.land/x/og_edge@0.0.6/mod.ts";
+import React from "https://esm.sh/react@18.2.0";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+const h = React.createElement;
+
+const FONT = "https://cdn.jsdelivr.net/fontsource/fonts";
+const fonts = Promise.all([
+  fetch(`${FONT}/inter@latest/latin-400-normal.ttf`).then((r) => r.arrayBuffer()),
+  fetch(`${FONT}/inter@latest/latin-600-normal.ttf`).then((r) => r.arrayBuffer()),
+  fetch(`${FONT}/overpass-mono@latest/latin-400-normal.ttf`).then((r) => r.arrayBuffer()),
+  fetch(`${FONT}/overpass-mono@latest/latin-700-normal.ttf`).then((r) => r.arrayBuffer()),
+]).then(([i4, i6, m4, m7]) => [
+  { name: "Inter", data: i4, weight: 400, style: "normal" },
+  { name: "Inter", data: i6, weight: 600, style: "normal" },
+  { name: "Mono", data: m4, weight: 400, style: "normal" },
+  { name: "Mono", data: m7, weight: 700, style: "normal" },
+]);
+
+type Neuron = { layer: number; neuron: number; dose: number; expert?: number };
+const C = { bg: "#121315", ink: "#f4f4f5", dim: "#a1a1aa", faint: "#71717a", up: "#ffb547", down: "#ff4f9a", panel: "#1c1d21", line: "#2a2b30" };
+const dose = (d: number) => { let s = (d >= 0 ? "+" : "-") + String(Math.abs(d)); if (!s.includes(".")) s += ".0"; return s; };
+// plain text: markdown markers out, whitespace collapsed
+const clip = (s: string, n: number) => { const t = String(s ?? "").replace(/(\*\*|__|`|^#+\s*)/gm, "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t; };
+
+function mark(size: number) {
+  return h("svg", { width: size, height: size * 44 / 48, viewBox: "8 8 48 44" },
+    h("rect", { x: 8, y: 28, width: 48, height: 4, rx: 1, fill: C.ink }),
+    h("path", { d: "M12 28V12a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v16z", fill: C.up }),
+    h("path", { d: "M34 32v16a4 4 0 0 0 4 4h10a4 4 0 0 0 4-4V32z", fill: C.down }));
+}
+
+function chip(n: Neuron) {
+  return h("div", { style: { display: "flex", alignItems: "baseline", padding: "8px 16px", borderRadius: 10, background: C.panel, border: `1px solid ${C.line}`, fontFamily: "Mono", fontSize: 30, color: C.ink } },
+    h("span", { style: { fontWeight: 700 } }, `L${n.layer}`),
+    h("span", {}, `${n.expert != null ? "E" + n.expert : ""}N${n.neuron}`),
+    h("span", { style: { color: n.dose >= 0 ? C.up : C.down } }, dose(n.dose)));
+}
+
+function panel(label: string, text: string, color: string) {
+  return h("div", { style: { display: "flex", flexDirection: "column", flex: 1, padding: "18px 22px", borderRadius: 14, background: C.panel, border: `1px solid ${C.line}` } },
+    h("div", { style: { fontSize: 20, color, fontWeight: 600, marginBottom: 8 } }, label),
+    h("div", { style: { fontSize: 25, color: C.ink, lineHeight: 1.35 } }, text));
+}
+
+function card(r: Record<string, any> | null) {
+  const head = h("div", { style: { display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontWeight: 600, color: C.ink } }, mark(44), "neuronary");
+  if (!r) {
+    return h("div", { style: { display: "flex", flexDirection: "column", justifyContent: "center", width: "100%", height: "100%", padding: "0 90px", background: C.bg, fontFamily: "Inter" } },
+      head, h("div", { style: { marginTop: 24, fontSize: 36, color: C.dim } }, "a dictionary of neuron steering recipes for language models"));
+  }
+  const ns: Neuron[] = [...r.neurons].sort((a: Neuron, b: Neuron) => a.layer - b.layer || a.neuron - b.neuron);
+  const ex = (r.examples ?? []).find((e: any) => e.base_output) ?? (r.examples ?? [])[0];
+  const prompt = ex ? clip(ex.prompt, 90) : "";
+  const body = !ex ? null : ex.base_output
+    ? h("div", { style: { display: "flex", gap: 18, marginTop: 26 } }, panel("base", clip(ex.base_output, 120), C.faint), panel("steered", clip(ex.output, 120), C.up))
+    : h("div", { style: { display: "flex", marginTop: 26 } }, panel("steered", clip(ex.output, 220), C.up));
+  return h("div", { style: { display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: "56px 70px", background: C.bg, fontFamily: "Inter", color: C.ink } },
+    head,
+    h("div", { style: { marginTop: 30, fontSize: r.name.length > 34 ? 52 : 64, fontWeight: 600, lineHeight: 1.1 } }, clip(r.name, 70)),
+    h("div", { style: { display: "flex", flexWrap: "wrap", gap: 12, marginTop: 22 } }, ...ns.slice(0, 6).map(chip),
+      ...(ns.length > 6 ? [h("div", { style: { fontSize: 28, color: C.dim, alignSelf: "center" } }, `+${ns.length - 6} more`)] : [])),
+    prompt ? h("div", { style: { marginTop: 24, fontSize: 22, color: C.dim } }, `“${prompt}”`) : null,
+    body,
+    h("div", { style: { display: "flex", marginTop: "auto", fontSize: 22, color: C.faint } }, `@${r.author_handle} · ${r.model}`));
+}
+
+Deno.serve(async (req) => {
+  const id = new URL(req.url).searchParams.get("id") ?? "";
+  let r: Record<string, any> | null = null;
+  if (/^[a-z0-9-]{1,64}$/.test(id)) {
+    const { data } = await sb.from("recipes").select("name,neurons,examples,author_handle,model,hidden,draft").eq("id", id).maybeSingle();
+    if (data && !data.hidden && !data.draft) r = data;
+  }
+  return new ImageResponse(card(r), {
+    width: 1200, height: 630, fonts: await fonts, emoji: "twemoji",
+    headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
+  });
+});

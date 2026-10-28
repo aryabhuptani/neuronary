@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027190513";
-import { createStore } from "./store.js?v=20261027190513";
+import { ABOUT_HTML } from "./about.js?v=20261027190930";
+import { createStore } from "./store.js?v=20261027190930";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027190513";
+} from "./format.js?v=20261027190930";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -14,7 +14,14 @@ let store;
 let RECIPES = [];
 
 // ------------------------------------------------------------------ icons
+// share links (/r/<id>, /n/<neuron>) land on a static page; the app itself routes by hash
+{
+  const m = location.pathname.match(/^\/(r|n)\/([^/]+)\/?$/);
+  if (m) history.replaceState(null, "", "/" + location.search + "#/" + m[1] + "/" + m[2]);
+}
+
 const I = {
+  share: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.5M5 5.2 8 2.2l3 3M3.5 8.5v5h9v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   repro: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.5 5.5 11.5 10.5 5M7.5 11.5 8.5 12.5 13.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   star: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
   dice: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="5.5" r="1.1" fill="currentColor"/><circle cx="10.5" cy="10.5" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/></svg>',
@@ -922,6 +929,7 @@ async function loadRecipe(id) {
 function recipeActions(r) {
   const out = [];
   const b = (act, icon, label, cls = "") => `<button class="btn sbtn ${cls}" data-ract="${act}">${icon}<span>${label}</span></button>`;
+  if (!r.draft && !r.hidden) out.push(b("share", I.share, "Share"));
   out.push(b("remix", I.fork, "Remix"));
   if (store.canEdit && store.canEdit(r)) {
     out.push(`<button class="btn sbtn" data-ract="edit">${I.edit}<span>Edit</span></button>`);
@@ -953,6 +961,13 @@ function wireRecipe(root, r) {
         r.featured = !r.featured;
         RECIPES = await store.list();
         b.querySelector("span").textContent = r.featured ? "Unfeature" : "Feature";
+        return;
+      }
+      if (a === "share") {
+        // the /r/<id> link unfurls with this recipe's own card on X and Discord
+        const url = `https://neuronary.org/r/${r.id}`;
+        if (navigator.share && matchMedia("(pointer: coarse)").matches) { try { await navigator.share({ title: r.name, url }); } catch { /* cancelled */ } return; }
+        if (await copyText(url)) { const sp = b.querySelector("span"); sp.textContent = "Link copied"; setTimeout(() => (sp.textContent = "Share"), 1500); }
         return;
       }
       if (a === "remix") {

@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>neuronary</title>
+<meta name="robots" content="noindex">
+<script>
+  // /r/<id> and /n/<neuron> pages that don't exist as files yet (share pages are rebuilt every 15 minutes): open the
+  // same thing in the app instead of a dead end
+  var m = location.pathname.match(/^\/(r|n)\/([^/]+)\/?$/);
+  location.replace("/" + (m ? "#/" + m[1] + "/" + m[2] : "#/"));
+</script>
+<p><a href="/">neuronary</a></p>
