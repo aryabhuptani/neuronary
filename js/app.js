@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027173145";
-import { createStore } from "./store.js?v=20261027173145";
+import { ABOUT_HTML } from "./about.js?v=20261027173521";
+import { createStore } from "./store.js?v=20261027173521";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027173145";
+} from "./format.js?v=20261027173521";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -71,11 +71,14 @@ async function route() {
   if (typeof closePops === "function") closePops();
   syncSearchBox(r);
   if (r.view === "recipe") {
-    if (listShown && modalPushed) return openModal(r.id);
-    closeModal(true);
-    listShown = false;
-    document.body.className = "page";
-    return renderRecipePage(r.id);
+    // a recipe always opens as a sheet; on a fresh load (or from about) the home list goes underneath,
+    // so refreshing looks the same and closing lands on home
+    if (!listShown) {
+      document.body.className = "";
+      renderBrowse(new URLSearchParams());
+      listShown = true; modalPushed = false; lastListHash = "#/";
+    }
+    return openModal(r.id);
   }
   const wasModal = !!overlay.innerHTML;
   closeModal(true);
@@ -816,22 +819,13 @@ function flashBtn(b) {
   b._t = setTimeout(() => { b.classList.remove("flash-ok"); lab.textContent = b.dataset.t; }, 1100);
 }
 
-async function renderRecipePage(id) {
-  main.innerHTML = `<div class="pagewrap"><div class="dim">…</div></div>`;
-  let r;
-  try { r = await loadRecipe(id); } catch (e) { flashError(e); }
-  if (!r) { main.innerHTML = `<div class="pagewrap"><div class="empty">No recipe called “${esc(id)}”.</div></div>`; return; }
-  document.title = `${r.name} · neuronary`;
-  main.innerHTML = `<div class="pagewrap">${recipeHtmlBlock(r, { modal: false })}</div>`;
-  wireRecipe(main, r);
-}
-
 async function openModal(id) {
   document.body.classList.add("modal-open");
   overlay.innerHTML = `<div class="modal"><div class="sheet"><div class="dim">…</div></div></div>`;
   // closes with back, Escape, or a tap on the scrim around the sheet (no close button)
   const modal = $(".modal", overlay);
   modal.onclick = (e) => { if (e.target === modal) closeModalNav(); };
+  swipeToClose(modal);
   let r;
   try { r = await loadRecipe(id); } catch (e) { flashError(e); }
   if (parseRoute().id !== id) return;
@@ -840,6 +834,30 @@ async function openModal(id) {
   document.title = `${r.name} · neuronary`;
   sheet.innerHTML = `${recipeHtmlBlock(r, { modal: true })}`;
   wireRecipe(sheet, r);
+}
+
+// Touch: dragging the sheet down while it's scrolled to the top follows the finger, and past a threshold closes it.
+// Also keeps Chrome's pull-to-refresh from firing on that drag.
+function swipeToClose(modal) {
+  let y0 = null, dy = 0;
+  const sheet = () => $(".sheet", modal);
+  modal.addEventListener("touchstart", (e) => {
+    y0 = modal.scrollTop <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null; dy = 0;
+  }, { passive: true });
+  modal.addEventListener("touchmove", (e) => {
+    if (y0 == null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0) { y0 = modal.scrollTop <= 0 ? e.touches[0].clientY : null; dy = 0; sheet().style.translate = ""; return; }
+    e.preventDefault();
+    const s = sheet(); s.style.transition = "none"; s.style.translate = `0 ${dy}px`;
+  }, { passive: false });
+  modal.addEventListener("touchend", () => {
+    if (y0 == null) return;
+    const s = sheet(); s.style.transition = "";
+    if (dy > 90) { s.style.translate = "0 100vh"; setTimeout(closeModalNav, 140); }
+    else s.style.translate = "";
+    y0 = null; dy = 0;
+  });
 }
 
 function closeModalNav() {
@@ -1048,6 +1066,7 @@ function openEditor(id = null) {
   closePops();
   if (!editorOpen) history.pushState({ editor: true }, "", location.href); // Back closes the form (no URL of its own)
   editorOpen = true;
+  listShown = false; // the form replaces the list in main
   editorReturn = scrollY;
   document.body.className = "page-submit";
   scrollTo(0, 0);

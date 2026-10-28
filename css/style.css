@@ -567,3 +567,4 @@ img.avatar, .about .shot img { outline: 1px solid var(--img-outline); outline-of
    skipped when the press is on a control inside the card */
 .card, .list tr.row { -webkit-tap-highlight-color: transparent; }
 .card:active:not(:has(button:active, .edge:active)) { background: var(--raise); }
+html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh while a sheet is open */
