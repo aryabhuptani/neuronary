@@ -563,3 +563,7 @@ img.avatar, .about .shot img { outline: 1px solid var(--img-outline); outline-of
 .tip { position: fixed; z-index: 80; max-width: 280px; padding: 7px 10px; border-radius: 4px; background: var(--ink); color: var(--bg);
   font: 12px/1.45 var(--font); pointer-events: none; box-shadow: var(--shadow); }
 @media (max-width: 640px) { .modal .sheet { border-radius: 24px 24px 0 0; } }
+/* no Android tap flash on cards and rows (it fired when tapping the vote buttons inside); own press state instead,
+   skipped when the press is on a control inside the card */
+.card, .list tr.row { -webkit-tap-highlight-color: transparent; }
+.card:active:not(:has(button:active, .edge:active)) { background: var(--raise); }
