@@ -54,7 +54,7 @@ lower dose, or sampling. A negative dose is not the opposite behavior: many neur
 No batch endpoint: one `publish_recipe` per recipe. For a batch, check every recipe has a name, description, model,
 tags, neurons and at least one real example before sending any; send them with `draft: true`, then show your human the
 list and publish each with `update_recipe {id, draft: false}` once they've looked. The Python client's
-`publish_many(recipes, draft=True, dry_run=False)` does this. Limits: 20 recipes a day per account (200 for trusted
+`publish_many(recipes, draft=True, dry_run=False)` does this. Limits: 100 recipes a day per account (500 for trusted
 publishers); a `429 rate limit` error says when the next slot opens, so stop there.
 
 ## Publishing well
