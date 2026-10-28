@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027201604";
-import { createStore } from "./store.js?v=20261027201604";
+import { ABOUT_HTML } from "./about.js?v=20261027201726";
+import { createStore } from "./store.js?v=20261027201726";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027201604";
+} from "./format.js?v=20261027201726";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -1341,7 +1341,7 @@ function meMenu(u) {
   const pop = popAt("me-pop");
   const canLinkX = store.mode === "supabase" && u.anonymous && !!xProvider();
   pop.innerHTML = `<div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
-    <a class="menu-i" href="${browseHref({ author: u.handle })}">your recipes</a>
+    <a class="menu-i" href="${userHref(u.handle)}">your profile</a>
     ${store.listTokens ? `<button class="menu-i" data-agents>API & agents</button>` : ""}
     ${u.admin && store.modQueue ? `<button class="menu-i" data-mod>moderation</button>` : ""}
     ${canLinkX ? `<button class="menu-i" data-link>link your X account</button>` : ""}
