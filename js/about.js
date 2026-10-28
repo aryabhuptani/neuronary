@@ -1,4 +1,4 @@
-// The about page. Static content; rendered into the main area at #/about.
+// The about page. Static content; rendered into the main area at /about.
 export const ABOUT_HTML = `
 <div class="pagewrap about">
   <h1>About</h1>

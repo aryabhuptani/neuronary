@@ -1,9 +1,9 @@
 """Static share pages: r/<id>/index.html for every public recipe, so neuronary.org/r/<id> unfurls on X and Discord
 with that recipe's own title, description and preview image (rendered by the Supabase `og` function).
 
-Each page is index.html with the recipe's meta tags and <base href="/">; in a browser the app moves on to #/r/<id>.
+Each page is index.html with the recipe's meta tags; the app routes by path, so it opens that recipe.
 Run by .github/workflows/share-pages.yml (every 15 min and on push). Recipes newer than the last run fall back to
-404.html, which redirects /r/<id> to /#/r/<id> (with the generic card).
+404.html, a copy of the app (with the generic card).
 """
 import glob
 import html
@@ -53,11 +53,18 @@ def page(base, r):
     for pat, rep in reps:
         out, n = re.subn(pat, lambda _m, rep=rep: rep, out, count=1)
         assert n == 1, pat
-    return out.replace("<head>", f'<head>\n<base href="/">\n<link rel="canonical" href="{e(link)}">', 1)
+    return out.replace("<head>", f'<head>\n<link rel="canonical" href="{e(link)}">', 1)
 
 
 def main():
     base = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
+    # the app routes by path: /about gets a real copy (200 for crawlers); anything else (/u/x, /n/x, a recipe newer than
+    # this run) falls back to 404.html, which is the same app
+    os.makedirs(os.path.join(ROOT, "about"), exist_ok=True)
+    with open(os.path.join(ROOT, "404.html"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(base)
+    with open(os.path.join(ROOT, "about", "index.html"), "w", encoding="utf-8", newline="\n") as f:
+        f.write(base.replace("<title>neuronary</title>", "<title>About · neuronary</title>", 1))
     recipes = fetch_all()
     keep = set()
     for r in recipes:

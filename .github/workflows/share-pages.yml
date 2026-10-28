@@ -20,7 +20,7 @@ jobs:
       - run: python scripts/build_share_pages.py
       - name: commit if changed
         run: |
-          git add -A r
+          git add -A r 404.html about
           if git diff --cached --quiet; then echo "no changes"; exit 0; fi
           git -c user.name="neuronary bot" -c user.email="actions@users.noreply.github.com" commit -m "share pages"
           git pull --rebase

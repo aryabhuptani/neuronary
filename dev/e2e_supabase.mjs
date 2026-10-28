@@ -37,7 +37,7 @@ await fetch(`${SB}/rest/v1/recipes`, { method: "POST", headers: { apikey: SERVIC
     neurons: [{ layer: 13, neuron: 7956, dose: -1 }, { layer: 14, neuron: 8949, dose: 1 }], tags: ["test"],
     examples: [{ prompt: "hi", output: "yo" }], author_handle: "fixture", origin: "repo" }) });
 try {
-  await page.goto(BASE + "#/browse", { waitUntil: "networkidle0" });
+  await page.goto(BASE + "browse", { waitUntil: "networkidle0" });
   check("loads recipes from the database", await waitFor(() => document.querySelectorAll(".card").length > 0));
   check("fixture is there", !!(await page.$(`.card[data-open="${FIX}"]`)));
 
@@ -87,10 +87,10 @@ try {
 
   // publish
   await page.evaluate(() => localStorage.removeItem("nr.draft"));
-  await page.goto(BASE + "#/", { waitUntil: "networkidle0" });
+  await page.goto(BASE, { waitUntil: "networkidle0" });
   await page.reload({ waitUntil: "networkidle0" });
   await page.click("[data-submit]");
-  check("submit opens without changing the url", await waitFor(() => !!document.querySelector('[data-k="name"]')) && (await page.evaluate(() => location.hash)) === "#/");
+  check("submit opens without changing the url", await waitFor(() => !!document.querySelector('[data-k="name"]')) && (await page.evaluate(() => location.pathname + location.search)) === "/");
   await page.type('[data-k="name"]', `E2E recipe ${tag}`);
   await page.type('[data-k="description"]', "made by the end-to-end test");
   await page.type("[data-tagtext]", "test,");
@@ -102,8 +102,8 @@ try {
   await page.type('[data-e="output"]', "Arr.");
   await shot("submit");
   await page.click("[data-publish]");
-  check("publish lands on the recipe", await waitFor(() => /^#\/r\/[a-z0-9]{8}$/.test(location.hash), 10000), await page.evaluate(() => location.hash));
-  rid = (await page.evaluate(() => location.hash)).slice(4);
+  check("publish lands on the recipe", await waitFor(() => /^\/r\/[a-z0-9]{8}$/.test(location.pathname), 10000), await page.evaluate(() => location.pathname));
+  rid = (await page.evaluate(() => location.pathname)).slice(3);
   check("recipe page shows sampling", await waitFor(() => /rep pen 1\.1/.test(document.body.textContent)));
   check("publish says so", await waitFor(() => /Published/.test(document.querySelector(".okflash")?.textContent || ""), 5000));
   check("author is the picked name", await waitFor((h) => document.querySelector(".meta")?.textContent.includes("@" + h), 8000, handle));
@@ -116,7 +116,7 @@ try {
   await page.type('[data-k="name"]', `E2E edited ${tag}`);
   await page.click("[data-save]");
   check("edit saves", await waitFor((t) => document.querySelector("h1")?.textContent === `E2E edited ${t}`, 10000, tag));
-  check("edit kept the id", await page.evaluate(() => location.hash) === `#/r/${rid}`);
+  check("edit kept the id", await page.evaluate(() => location.pathname) === `/r/${rid}`);
 
   // remix: pre-filled form, and the duplicate-neurons warning points at the original
   await page.click('.ractions [data-ract="remix"]');
@@ -124,11 +124,11 @@ try {
   check("duplicate neurons warned", await waitFor((t) => (document.querySelector("[data-dupe]")?.textContent || "").includes(`E2E edited ${t}`), 5000, tag),
     await page.evaluate(() => document.querySelector("[data-dupe]")?.textContent));
   await page.click("[data-discard]").catch(() => {});
-  await page.goto(BASE + "#/r/" + rid, { waitUntil: "networkidle0" });
+  await page.goto(BASE + "r/" + rid, { waitUntil: "networkidle0" });
   await waitFor(() => !!document.querySelector(".modal .rec"), 8000);
 
   // reproduction on someone else's recipe (the fixture)
-  await page.goto(BASE + "#/r/" + FIX, { waitUntil: "networkidle0" });
+  await page.goto(BASE + "r/" + FIX, { waitUntil: "networkidle0" });
   check("reproduce button shows", await waitFor(() => !!document.querySelector("[data-rshow]"), 10000));
   await page.click("[data-rshow]");
   await page.type("[data-ro]", `Arr, reproduced ${tag}`);
@@ -156,7 +156,7 @@ try {
   await page.click("[data-savedraft]");
   check("draft saves privately", await waitFor(() => /Draft: only you/.test(document.querySelector(".hidbanner")?.textContent || ""), 10000),
     await page.evaluate(() => document.querySelector("[data-errsum]")?.textContent + " " + [...document.querySelectorAll(".f .err")].map((e) => e.textContent).join("; ") + " " + (document.querySelector(".puberr")?.textContent || "")));
-  draftId = (await page.evaluate(() => location.hash)).slice(4);
+  draftId = (await page.evaluate(() => location.pathname)).slice(3);
   check("dose curve renders", await page.evaluate(() => document.querySelectorAll(".curve .pt").length === 4));
   const pub = await fetch(`${SB}/rest/v1/recipes?id=eq.${draftId}&select=id`, { headers: { apikey: process.env.SUPABASE_ANON_KEY || "" } }).then((r) => r.json()).catch(() => null);
   if (process.env.SUPABASE_ANON_KEY) check("draft is invisible to the public", Array.isArray(pub) && pub.length === 0, JSON.stringify(pub));
@@ -194,15 +194,15 @@ try {
   await page.click("[data-bgo]");
   check("batch publishes the valid ones", await waitFor(() => /Done: 2 published/.test(document.querySelector("[data-bsum]")?.textContent || ""), 20000),
     await page.evaluate(() => document.querySelector("[data-bsum]")?.textContent + " " + document.querySelector(".blist")?.textContent));
-  batchIds = await page.evaluate(() => [...document.querySelectorAll(".blist a")].map((a) => a.getAttribute("href").slice(4)));
+  batchIds = await page.evaluate(() => [...document.querySelectorAll(".blist a")].map((a) => a.getAttribute("href").slice(3)));
   await page.click("[data-bcancel]");
-  await page.goto(BASE + "#/r/" + rid, { waitUntil: "networkidle0" });
+  await page.goto(BASE + "r/" + rid, { waitUntil: "networkidle0" });
   await waitFor(() => !!document.querySelector('.ractions [data-ract="delete"]'), 10000);
   await sleep(600); // let the sheet finish loading so the button isn't replaced under the click
 
   // delete
   await page.click('.ractions [data-ract="delete"]');
-  check("delete goes back to browse", await waitFor(() => location.hash === "#/", 10000));
+  check("delete goes back to browse", await waitFor(() => location.pathname === "/", 10000));
   check("deleted recipe is gone", await waitFor((rid) => !document.querySelector(`.card[data-open="${rid}"]`), 8000, rid));
   await shot("after_delete");
 } finally {

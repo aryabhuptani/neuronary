@@ -182,9 +182,9 @@ class SupabaseStore {
     if (qs.has("code") || qs.has("error") || qs.has("error_description")) {
       this.returnedFromOAuth = !qs.has("error");
       if (qs.get("error_description")) console.error("sign-in failed:", qs.get("error_description"));
-      const back = sessionStorage.getItem("nr.returnTo") || "#/";
+      const back = sessionStorage.getItem("nr.returnTo") || "/";
       sessionStorage.removeItem("nr.returnTo");
-      history.replaceState(null, "", location.pathname + back);
+      history.replaceState(null, "", back);
     }
     this.session = data.session;
     await this._loadProfile();
@@ -223,8 +223,8 @@ class SupabaseStore {
   providers() { return this.cfg.authProviders || []; }
   // return to the bare site URL (a #route there would collide with the OAuth response); remember the route ourselves
   _returnUrl() {
-    sessionStorage.setItem("nr.returnTo", location.hash || "#/");
-    return location.origin + location.pathname;
+    sessionStorage.setItem("nr.returnTo", location.pathname + location.search);
+    return location.origin + "/";
   }
   async signInWith(provider) {
     const { error } = await this.sb.auth.signInWithOAuth({ provider, options: { redirectTo: this._returnUrl() } });

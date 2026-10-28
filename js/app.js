@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027203422";
-import { createStore } from "./store.js?v=20261027203422";
+import { ABOUT_HTML } from "./about.js?v=20261027210556";
+import { createStore } from "./store.js?v=20261027210556";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027203422";
+} from "./format.js?v=20261027210556";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -16,8 +16,8 @@ let RECIPES = [];
 // ------------------------------------------------------------------ icons
 // share links (/r/<id>, /n/<neuron>) land on a static page; the app itself routes by hash
 {
-  const m = location.pathname.match(/^\/(r|n|u)\/([^/]+)\/?$/);
-  if (m) history.replaceState(null, "", "/" + location.search + "#/" + m[1] + "/" + m[2]);
+  // the site routes by path (/about, /r/<id>); links from before used #/about, #/r/<id>
+  if (location.hash.startsWith("#/")) history.replaceState(null, "", location.hash.slice(1) || "/");
 }
 
 const I = {
@@ -47,11 +47,13 @@ const I = {
 
 // ------------------------------------------------------------------ routing
 function parseRoute() {
-  if (/(^|#)(access_token|error|refresh_token)=/.test(location.hash.slice(1))) { history.replaceState(null, "", location.pathname + "#/"); }
-  return parseHash(location.hash);
+  if (/(^|#)(access_token|error|refresh_token)=/.test(location.hash.slice(1))) { history.replaceState(null, "", "/"); }
+  return parseHash(here());
 }
+// the current route as a path: "/r/abc", "/?q=x"
+const here = () => location.pathname + location.search;
 function parseHash(hash) {
-  const h = hash.replace(/^#\/?/, "");
+  const h = hash.replace(/^#?\/?/, "");
   const [path, qs] = h.split("?");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   const p = new URLSearchParams(qs || "");
@@ -73,12 +75,12 @@ const browseHref = (p) => {
   const s = new URLSearchParams();
   for (const [k, v] of Object.entries(p)) if (v != null && v !== "" && !(Array.isArray(v) && !v.length)) s.set(k, Array.isArray(v) ? v.join(",") : v);
   const q = s.toString();
-  return "#/" + (q ? "?" + q : "");
+  return "/" + (q ? "?" + q : "");
 };
 
 let listShown = false; // the main area holds home/browse, so a recipe can open as a modal over it
 let modalPushed = false;
-let lastListHash = "#/";
+let lastListHash = "/";
 
 async function route() {
   editorOpen = false;
@@ -91,7 +93,7 @@ async function route() {
     if (!listShown) {
       document.body.className = "";
       renderBrowse(new URLSearchParams());
-      listShown = true; modalPushed = false; lastListHash = "#/";
+      listShown = true; modalPushed = false; lastListHash = "/";
     }
     return openModal(r.id);
   }
@@ -99,21 +101,24 @@ async function route() {
   const wasModal = !!overlay.innerHTML;
   closeModal(true);
   modalPushed = false;
-  if (wasModal && listShown && location.hash === lastListHash) return; // back to the list underneath, untouched
-  if (r.view === "browse") { listShown = true; lastListHash = location.hash; return renderBrowse(r.p); }
+  if (wasModal && listShown && here() === lastListHash) return; // back to the list underneath, untouched
+  if (r.view === "browse") { listShown = true; lastListHash = here(); return renderBrowse(r.p); }
   listShown = false;
-  if (r.view === "submit-legacy") { history.replaceState(null, "", "#/"); route(); return openEditor(); }
+  if (r.view === "submit-legacy") { history.replaceState(null, "", "/"); route(); return openEditor(); }
   if (r.view === "about") { document.body.className = "page"; document.title = "About · neuronary"; main.innerHTML = ABOUT_HTML; scrollTo(0, 0); return; }
-  if (r.view === "neuron") { document.body.className = ""; listShown = true; lastListHash = location.hash; return renderNeuron(r.key); }
-  if (r.view === "user") { document.body.className = ""; listShown = true; lastListHash = location.hash; return renderUser(r.handle, r.p); }
+  if (r.view === "neuron") { document.body.className = ""; listShown = true; lastListHash = here(); return renderNeuron(r.key); }
+  if (r.view === "user") { document.body.className = ""; listShown = true; lastListHash = here(); return renderUser(r.handle, r.p); }
   document.body.className = "page";
-  main.innerHTML = `<div class="empty">Nothing here. <a href="#/">neuronary</a></div>`;
+  main.innerHTML = `<div class="empty">Nothing here. <a href="/">neuronary</a></div>`;
 }
 
-function go(hash) {
-  if (location.hash === hash) route();
-  else location.hash = hash;
+// navigate within the app (a history entry, no page load)
+function go(path) {
+  if (here() === path) return route();
+  history.pushState(null, "", path);
+  route();
 }
+const nav = go;
 
 // ------------------------------------------------------------------ common bits
 // escape, then turn bare http(s) URLs into links
@@ -127,13 +132,13 @@ const tagHref = (t) => browseHref({ tags: [t] });
 const tagsHtml = (tags, on = []) => tags.map((t) => `<a class="tag ${on.includes(t) ? "on" : ""}" href="${tagHref(t)}">${esc(t)}</a>`).join("");
 const shortModel = (m) => m.split("/").pop();
 const isTrusted = (h) => !!(store.trusted && store.trusted.has(h));
-const userHref = (h) => `#/u/${encodeURIComponent(h)}`;
+const userHref = (h) => `/u/${encodeURIComponent(h)}`;
 const whoHtml = (h) => `<a class="who${isTrusted(h) ? " trusted" : ""}" href="${userHref(h)}"${isTrusted(h) ? ' title="trusted publisher"' : ""}>@${esc(h)}</a>`;
 
 function cardHtml(r, on) {
   return `<article class="card" data-open="${esc(r.id)}">
     ${edgeMark(r.neurons, r.model)}
-    <h3 class="name"><a class="cardlink" href="#/r/${esc(r.id)}">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}</a></h3>
+    <h3 class="name"><a class="cardlink" href="/r/${esc(r.id)}">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}</a></h3>
     <div class="rid">${recipeHtml(r.neurons)}</div>
     <div class="desc">${esc(r.description)}</div>
     <div class="tags">${r.tags.slice(0, 5).map((t) => `<span class="tag ${on.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div>
@@ -172,8 +177,8 @@ function paintVotes(r) {
 document.addEventListener("click", (e) => {
   const brand = e.target.closest("a.brand");
   if (brand) { qInput.value = ""; qState.tags = []; }
-  const same = e.target.closest('a[href^="#/"]');
-  if (same && !e.metaKey && !e.ctrlKey && !e.shiftKey && same.getAttribute("href") === (location.hash || "#/") && !same.closest("[data-open]")) {
+  const same = e.target.closest('a[href^="/"]');
+  if (same && !e.metaKey && !e.ctrlKey && !e.shiftKey && same.getAttribute("href") === here() && !same.closest("[data-open]")) {
     // a link to where we already are: re-route anyway, so it leaves views without a URL (API & agents, editor, moderation)
     e.preventDefault();
     if (overlay.innerHTML) closeModal(true);
@@ -205,13 +210,23 @@ document.addEventListener("click", (e) => {
   if (op && listShown && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) {
     e.preventDefault();
     modalPushed = true;
-    location.hash = "#/r/" + op.dataset.open;
+    go("/r/" + op.dataset.open);
     return;
   }
   const cp = e.target.closest("button[data-copy]");
   if (cp) {
     e.preventDefault();
     copyText(cp.dataset.copy).then((ok) => ok && flashCopied(cp));
+    return;
+  }
+  // links to app pages (/about, /r/x, /u/x, /?q=...) navigate in place; files (/llms.txt, /privacy.html) load normally
+  const a = e.target.closest("a[href]");
+  const href = a && a.getAttribute("href");
+  if (href && !e.defaultPrevented && /^\/(?!\/)/.test(href) && !/\.[a-z0-9]+(\?|$)/i.test(href.split("#")[0])
+      && !a.target && !a.hasAttribute("download") && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+    e.preventDefault();
+    closePops();
+    go(href);
   }
 });
 
@@ -331,7 +346,7 @@ function suggestions(text) {
     .sort((a, b) => (b.startsWith(s) - a.startsWith(s)) || tc[b] - tc[a]).slice(0, 5)
     .forEach((t) => out.push({ kind: "tag", label: t, n: tc[t], act: () => { qInput.value = ""; searchTo("", [...qState.tags, t]); } }));
   RECIPES.filter((r) => r.name.toLowerCase().includes(s)).slice(0, 5)
-    .forEach((r) => out.push({ kind: "recipe", label: r.name, act: () => { modalPushed = listShown; location.hash = "#/r/" + r.id; } }));
+    .forEach((r) => out.push({ kind: "recipe", label: r.name, act: () => { modalPushed = listShown; go("/r/" + r.id); } }));
   const models = [...new Set(RECIPES.map((r) => r.model))].filter((m) => m.toLowerCase().includes(s)).slice(0, 2);
   models.forEach((m) => out.push({ kind: "model", label: m, act: () => { const p = currentBrowseParams(); p.model = m; p.q = ""; qInput.value = ""; go(browseHref(p)); } }));
   return out;
@@ -361,7 +376,7 @@ qInput.addEventListener("input", () => {
     const p = currentBrowseParams();
     p.q = qInput.value.trim(); p.tags = qState.tags;
     const h = browseHref(p);
-    if (h === (location.hash || "#/")) return;
+    if (h === here()) return;
     history.replaceState(null, "", h);
     lastListHash = h;
     renderBrowse(new URLSearchParams(Object.entries(Object.fromEntries(Object.entries(p).filter(([, v]) => v && v.length)))));
@@ -497,18 +512,18 @@ async function renderMod() {
     if (kind === "comment") {
       const c = q.comments[String(id)];
       if (!c) return `<span class="faint">comment ${esc(id)} (deleted)</span>`;
-      return `<div class="mtext">${esc(c.body)}</div><div class="mmeta">@${esc(c.author_handle)} on <a href="#/r/${esc(c.recipe_id)}">${esc(c.recipe_id)}</a>
+      return `<div class="mtext">${esc(c.body)}</div><div class="mmeta">@${esc(c.author_handle)} on <a href="/r/${esc(c.recipe_id)}">${esc(c.recipe_id)}</a>
         <button class="btn sbtn" data-mhide="comment:${c.id}:${c.hidden ? 0 : 1}">${c.hidden ? I.eyeoff + "<span>Unhide</span>" : I.eyeoff + "<span>Hide</span>"}</button>${c.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
     }
     if (kind === "reproduction") {
       const x = q.reproductions[String(id)];
       if (!x) return `<span class="faint">reproduction ${esc(id)} (deleted)</span>`;
-      return `<div class="mtext">${esc(x.output)}</div><div class="mmeta">reproduction by @${esc(x.author_handle)} on <a href="#/r/${esc(x.recipe_id)}">${esc(x.recipe_id)}</a>
+      return `<div class="mtext">${esc(x.output)}</div><div class="mmeta">reproduction by @${esc(x.author_handle)} on <a href="/r/${esc(x.recipe_id)}">${esc(x.recipe_id)}</a>
         <button class="btn sbtn" data-mhide="reproduction:${x.id}:${x.hidden ? 0 : 1}">${I.eyeoff}<span>${x.hidden ? "Unhide" : "Hide"}</span></button>${x.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
     }
     const r = q.recipes[id];
     if (!r) return `<span class="faint">recipe ${esc(id)} (deleted)</span>`;
-    return `<div class="mtext"><a href="#/r/${esc(r.id)}">${esc(r.name)}</a>: ${esc(r.description)}</div><div class="mmeta">@${esc(r.author_handle)}
+    return `<div class="mtext"><a href="/r/${esc(r.id)}">${esc(r.name)}</a>: ${esc(r.description)}</div><div class="mmeta">@${esc(r.author_handle)}
       <button class="btn sbtn" data-mhide="recipe:${r.id}:${r.hidden ? 0 : 1}">${I.eyeoff}<span>${r.hidden ? "Unhide" : "Hide"}</span></button>${r.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
   };
   const pending = q.log.filter((l) => l.verdict === "review" && !l.resolved_at);
@@ -653,7 +668,7 @@ function renderNeuron(key) {
     ${uses.length ? `<div class="grid">${uses.map((r) => cardHtml(r, [])).join("")}</div>` : `<div class="empty">No recipes use ${k} yet.</div>`}`;
 }
 
-// ------------------------------------------------------------------ profile (#/u/<handle>)
+// ------------------------------------------------------------------ profile (/u/<handle>)
 async function renderUser(handle, params) {
   const p = Object.fromEntries(params.entries());
   const sort = ["hot", "top", "new"].includes(p.sort) ? p.sort : "top";
@@ -761,7 +776,7 @@ function renderBrowse(params) {
     if (p.q) {
       // closest recipe names and tags to what was typed
       const q = p.q.toLowerCase();
-      const cands = [...RECIPES.filter((r) => !r.draft).map((r) => ({ label: r.name, href: `#/r/${r.id}` })),
+      const cands = [...RECIPES.filter((r) => !r.draft).map((r) => ({ label: r.name, href: `/r/${r.id}` })),
         ...Object.keys(tagCounts()).map((t) => ({ label: t, href: browseHref({ tags: [t] }) }))]
         .map((c) => ({ ...c, d: editDist(c.label.toLowerCase(), q, 6) })).filter((c) => c.d <= Math.max(2, Math.floor(q.length / 3)))
         .sort((a, b) => a.d - b.d).slice(0, 4);
@@ -782,9 +797,9 @@ function renderBrowse(params) {
       <div class="sechead feathead"><h2>Everything</h2></div>` : "") + `<div class="grid">${rest.map((r) => cardHtml(r, tags)).join("")}</div>`;
   }
   else body = `<div class="list"><table><thead><tr><th></th><th>name</th><th>neurons</th><th class="hide-s">tags</th><th class="hide-s">model</th><th></th></tr></thead><tbody>
-    ${rs.map((r) => `<tr class="row" data-open="${esc(r.id)}" data-href="#/r/${esc(r.id)}">
+    ${rs.map((r) => `<tr class="row" data-open="${esc(r.id)}" data-href="/r/${esc(r.id)}">
       <td class="vcol">${votesHtml(r)}</td>
-      <td><div class="nm">${r.draft ? `<span class="draftbadge">draft</span>` : ""}<a class="rowlink" href="#/r/${esc(r.id)}">${esc(r.name)}</a>${whoHtml(r.author.handle)}</div><div class="ds">${esc(r.description)}</div></td>
+      <td><div class="nm">${r.draft ? `<span class="draftbadge">draft</span>` : ""}<a class="rowlink" href="/r/${esc(r.id)}">${esc(r.name)}</a>${whoHtml(r.author.handle)}</div><div class="ds">${esc(r.description)}</div></td>
       <td><span class="rid">${recipeHtml(r.neurons)}</span>${edgeMark(r.neurons, r.model)}</td>
       <td class="hide-s"><div class="tags">${r.tags.slice(0, 4).map((t) => `<span class="tag ${tags.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div></td>
       <td class="hide-s model">${esc(shortModel(r.model))}</td>
@@ -803,7 +818,7 @@ function wireBrowse(p) {
     const pool = shown.length ? shown : RECIPES.filter((r) => !r.draft && !r.hidden);
     if (!pool.length) return;
     modalPushed = true;
-    location.hash = "#/r/" + pool[Math.floor(Math.random() * pool.length)].id;
+    go("/r/" + pool[Math.floor(Math.random() * pool.length)].id);
   };
   const ft = $("[data-ftoggle]");
   if (ft) ft.onclick = (e) => { e.stopPropagation(); filtersOpen = !filtersOpen; openDd = null; renderBrowse(new URLSearchParams(Object.entries(p))); };
@@ -894,13 +909,13 @@ function recipeHtmlBlock(r, { modal }) {
 
   return `<div class="rec">
     <div class="rhead">
-      ${cat ? `<div class="crumb"><a href="#/c/${esc(cat.tag)}">${esc(cat.name)}</a> &nbsp;›&nbsp; ${esc(r.name)}</div>` : ""}
+      ${cat ? `<div class="crumb"><a href="/c/${esc(cat.tag)}">${esc(cat.name)}</a> &nbsp;›&nbsp; ${esc(r.name)}</div>` : ""}
       ${r.hidden ? `<div class="hidbanner">${store.user() && store.user().admin ? "Hidden: only you and admins can see this recipe." : "Waiting for review: only you can see this recipe until a moderator approves it."}${store.user() && store.user().admin ? ` <button class="btn sbtn" data-ract="hide">${I.eyeoff}<span>Unhide</span></button>` : ""}</div>` : ""}
       ${r.draft ? `<div class="hidbanner">Draft: only you can see this. <button class="btn sbtn primary" data-ract="publishdraft">Publish</button></div>` : ""}
       <h1>${esc(r.name)}</h1>
       <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}${edgeMark(r.neurons, r.model)}</div>
-      ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${[...ingredients.map((x) => `<a href="#/r/${esc(x.id)}">${esc(x.name)}</a>`),
-        ...leftover.map((n) => `<a href="#/n/${neuronKey(n)}" class="mono" title="no recipe posted for this neuron alone">${neuronKey(n)}</a>`)].join(` <span class="dim">+</span> `)}
+      ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${[...ingredients.map((x) => `<a href="/r/${esc(x.id)}">${esc(x.name)}</a>`),
+        ...leftover.map((n) => `<a href="/n/${neuronKey(n)}" class="mono" title="no recipe posted for this neuron alone">${neuronKey(n)}</a>`)].join(` <span class="dim">+</span> `)}
         ${doseDiffs.length ? `<div class="dim combonote">different doses: ${esc(doseDiffs.join("; "))}</div>` : ""}</div>` : ""}
       <div class="meta"><a href="${userHref(r.author.handle)}"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>${r.reproductions ? ` &nbsp;·&nbsp; <span class="repro">${I.repro} reproduced by ${r.reproductions}</span>` : ""}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
@@ -946,7 +961,7 @@ function recipeHtmlBlock(r, { modal }) {
       </div>
       <div class="blk"><div class="lab">neurons</div>
         ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
-          ${u > 0 ? `<a class="in" href="#/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
+          ${u > 0 ? `<a class="in" href="/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
       </div>
       ${r.dose_curve ? `<div class="blk"><div class="lab">dose curve</div>${curveSvg(r.dose_curve)}</div>` : ""}
       <div class="blk"><div class="lab">method <span class="unitq" data-tip="${esc(m.op === "add" && m.normalization !== "raw"
@@ -955,11 +970,11 @@ function recipeHtmlBlock(r, { modal }) {
       ${samplingText(r) ? `<div class="blk"><div class="lab">recommended sampling</div><div class="mono">${esc(samplingText(r))}</div></div>` : ""}
       ${aka.length || (r.aliases || []).length ? `<div class="blk"><div class="lab">also known as</div>
         ${(r.aliases || []).map((a) => `<div class="alias"><span>${esc(a)}</span></div>`).join("")}
-        ${aka.map((x) => `<div class="alias"><a href="#/r/${esc(x.id)}">${esc(x.name)}</a><span class="s">${x.score}</span></div>`).join("")}</div>` : ""}
+        ${aka.map((x) => `<div class="alias"><a href="/r/${esc(x.id)}">${esc(x.name)}</a><span class="s">${x.score}</span></div>`).join("")}</div>` : ""}
       ${usedIn.length ? `<div class="blk"><div class="lab">used in</div>
-        ${usedIn.map((x) => `<a class="rel" href="#/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
+        ${usedIn.map((x) => `<a class="rel" href="/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
       ${related.length ? `<div class="blk"><div class="lab">shares neurons with</div>
-        ${related.map((x) => `<a class="rel" href="#/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
+        ${related.map((x) => `<a class="rel" href="/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
       ${r.notes ? `<div class="blk"><div class="lab">notes</div><div class="notes">${linkify(r.notes)}</div></div>` : ""}
       ${r.conditional ? `<div class="blk"><div class="lab">conditional</div><pre>${esc(JSON.stringify(r.conditional, null, 2))}</pre></div>` : ""}
     </aside>
@@ -1027,7 +1042,7 @@ function wireRecipe(root, r) {
         await store.remove(r.id);
         RECIPES = RECIPES.filter((x) => x.id !== r.id);
         if (overlay.innerHTML) { closeModal(true); listShown = false; }
-        location.hash = "#/";
+        go("/");
       } else if (a === "hide") {
         await store.setHidden(r.id, !r.hidden);
         RECIPES = await store.list();
@@ -1126,7 +1141,7 @@ function remix(r) {
   if ((cur.name.trim() || cur.description.trim()) && !confirm("Replace your unfinished draft with this remix?")) return;
   const d = recipeToDraft(r);
   delete d._orig;
-  Object.assign(d, { name: "", description: "", examples: [{ prompt: "", output: "", base_output: "" }], source: `https://neuronary.org/#/r/${r.id}`, notes: `Remix of “${r.name}” by @${r.author.handle}.` });
+  Object.assign(d, { name: "", description: "", examples: [{ prompt: "", output: "", base_output: "" }], source: `https://neuronary.org/r/${r.id}`, notes: `Remix of “${r.name}” by @${r.author.handle}.` });
   localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
   if (overlay.innerHTML) closeModal(true);
   editing = null;
@@ -1135,7 +1150,7 @@ function remix(r) {
 
 function closeModalNav() {
   if (modalPushed) history.back();
-  else location.hash = lastListHash;
+  else go(lastListHash);
 }
 
 let modalOpener = null;
@@ -1467,8 +1482,11 @@ function openEditor(id = null) {
   renderSubmit();
 }
 
+// back/forward: every history entry is a path (plus the editor's same-URL entry), so route on each one
 window.addEventListener("popstate", (e) => {
-  if (editorOpen && !(e.state && e.state.editor)) { editorOpen = false; editing = null; route(); }
+  if (e.state && e.state.editor && editorOpen) return;
+  editorOpen = false; editing = null;
+  route();
 });
 
 function closeEditor() {
@@ -1579,7 +1597,7 @@ async function renderBatch(list) {
       st.className = "bs dim"; st.textContent = "publishing…";
       try {
         const id = await store.submit(draftToRecipe(x.d, "new"), { draft: !!$("[data-bdraft]")?.checked });
-        st.innerHTML = `<a href="#/r/${esc(id)}">published</a>`; done++;
+        st.innerHTML = `<a href="/r/${esc(id)}">published</a>`; done++;
       } catch (err) {
         st.className = "bs err"; st.textContent = errText(err); failed++;
         if (/rate limit/.test(String(err.message || err))) break;
@@ -1664,7 +1682,7 @@ function renderSubmit() {
     // same neurons (any doses) already posted?
     const k = ns.map(neuronKey).sort().join(" ");
     const same = k ? RECIPES.filter((x) => x.id !== editing && x.model === d.model.trim() && x.neurons.map(neuronKey).sort().join(" ") === k) : [];
-    $("[data-dupe]").innerHTML = same.length ? `Already posted with these neurons: ${same.slice(0, 3).map((x) => `<a href="#/r/${esc(x.id)}" target="_blank">${esc(x.name)}</a> by @${esc(x.author.handle)}`).join(", ")}${same.length > 3 ? ` and ${same.length - 3} more` : ""}. Post anyway if yours differs (doses, effect), or add an example there.` : "";
+    $("[data-dupe]").innerHTML = same.length ? `Already posted with these neurons: ${same.slice(0, 3).map((x) => `<a href="/r/${esc(x.id)}" target="_blank">${esc(x.name)}</a> by @${esc(x.author.handle)}`).join(", ")}${same.length > 3 ? ` and ${same.length - 3} more` : ""}. Post anyway if yours differs (doses, effect), or add an example there.` : "";
   };
   const showErrs = (errs, all) => {
     $$(".f[data-f]").forEach((f) => {
@@ -1844,7 +1862,7 @@ function renderSubmit() {
       localStorage.removeItem(DRAFT_KEY);
       RECIPES = await store.list();
       editorOpen = false;
-      location.hash = "#/r/" + id;
+      go("/r/" + id);
       flashOk(`Saved “${r.name}” as a draft. Only you can see it.`);
     } catch (err) { console.error(err); b.disabled = false; b.textContent = "Save as draft"; pubErr(errText(err)); }
   });
@@ -1860,7 +1878,7 @@ function renderSubmit() {
       localStorage.removeItem(DRAFT_KEY);
       RECIPES = await store.list();
       editorOpen = false;
-      location.hash = "#/r/" + id;
+      go("/r/" + id);
       flashOk(`Published “${r.name}”.`);
     } catch (err) {
       console.error(err);
@@ -1881,7 +1899,7 @@ function renderSubmit() {
       editing = null;
       editorOpen = false;
       RECIPES = await store.list();
-      if (location.hash === "#/r/" + id) route(); else location.hash = "#/r/" + id;
+      go("/r/" + id);
     } catch (err) { console.error(err); b.disabled = false; b.textContent = "Save changes"; pubErr(errText(err)); }
   });
   bind("[data-discard]", () => { localStorage.removeItem(draftKey()); editing = null; closeEditor(); });
@@ -1911,7 +1929,8 @@ async function boot() {
     RECIPES = await store.list();
     if (editorOpen) renderSubmit(); else route(); // signing in mid-form keeps you in the form
   });
-  window.addEventListener("hashchange", route);
+  // an old-style #/ link followed inside the page
+  window.addEventListener("hashchange", () => { if (location.hash.startsWith("#/")) { history.replaceState(null, "", location.hash.slice(1) || "/"); route(); } });
   await route();
   if (fromCache) fresh.then((rs) => {
     RECIPES = rs;
