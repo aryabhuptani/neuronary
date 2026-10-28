@@ -635,7 +635,8 @@ html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh
 .card .cardlink::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 .card .cardlink:focus-visible { outline: none; }
 .card:has(.cardlink:focus-visible) { box-shadow: 0 0 0 2px var(--accent, #0284c7); }
-.card .votes, .card .edges, .card .tag { position: relative; z-index: 1; }
+.card .votes, .card .tag { position: relative; z-index: 1; }
+.card > .edges { z-index: 1; } /* stays absolute in the top right corner (set above) */
 .list .rowlink { color: inherit; text-decoration: none; }
 .list .rowlink:hover { text-decoration: underline; }
 /* recipe sheet: on phones the vote and exports sit under the title; examples come before the side panel */
