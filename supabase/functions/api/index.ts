@@ -165,7 +165,7 @@ const friendly = (msg: string) => msg.replace(/new row for relation "recipes" vi
 
 async function publish(u: User, body: Record<string, any>) {
   const me = need(u);
-  // same per-user limit as the site (20 a day for picked names, 100 for X-verified accounts, 500 for trusted publishers, none for admins)
+  // same per-user limit as the site (backstops: 200 a day for picked names, 1000 for X-verified accounts, 10000 for trusted publishers, none for admins)
   const { data: q } = await sb.rpc("recipe_quota_for", { uid: me.id });
   if (q && q.limit != null && q.used >= q.limit) {
     throw new HttpError(429, `rate limit: ${q.limit} recipes a day${q.next_at ? `; next one at ${new Date(q.next_at).toISOString()}` : ""}`);
@@ -194,7 +194,7 @@ async function comment(u: User, id: string, body: { body?: string; parent_id?: n
   if (!body.body || !String(body.body).trim()) throw new HttpError(400, "empty comment");
   const { count } = await sb.from("comments").select("id", { count: "exact", head: true }).eq("user_id", me.id)
     .gt("created_at", new Date(Date.now() - 3600e3).toISOString());
-  if ((count ?? 0) >= 30) throw new HttpError(429, "rate limit: 30 comments an hour");
+  if ((count ?? 0) >= 300) throw new HttpError(429, "rate limit: 300 comments an hour");
   if (body.parent_id) {
     const { data: p } = await sb.from("comments").select("recipe_id,parent_id").eq("id", body.parent_id).maybeSingle();
     if (!p || p.recipe_id !== id || p.parent_id) throw new HttpError(400, "replies go one level deep, on the same recipe");
@@ -214,7 +214,7 @@ async function reproduce(u: User, id: string, body: { output?: string; prompt?: 
   if (r.user_id === me.id) throw new HttpError(400, "reproductions are for other people's recipes; add an example to your own instead");
   const { count } = await sb.from("reproductions").select("id", { count: "exact", head: true }).eq("user_id", me.id)
     .gt("created_at", new Date(Date.now() - 3600e3).toISOString());
-  if ((count ?? 0) >= 30) throw new HttpError(429, "rate limit: 30 reproductions an hour");
+  if ((count ?? 0) >= 500) throw new HttpError(429, "rate limit: 500 reproductions an hour");
   const result = body.result ?? "yes";
   if (!["yes", "partial", "no"].includes(result)) throw new HttpError(400, "result: yes, partial or no");
   const row = { recipe_id: id, user_id: me.id, author_handle: me.handle, output: String(body.output), result,
@@ -246,7 +246,7 @@ const TOOLS = [
       limit: { type: "integer", minimum: 1, maximum: 100 } } } },
   { name: "get_recipe", description: "Get one recipe with its neurons, doses, method, recommended sampling and example outputs.",
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-  { name: "publish_recipe", description: "Publish a recipe as the token's owner. Dose units: act[n] += dose * median(||resid leaving layer L||) / ||W_down[:, n]|| at the input of mlp.down_proj, every token. Give neurons either as a list or as a recipe string like 'L13N7956-1.0 L14N8949+1.0'. At least one example (prompt + steered output) is required. For a batch, call once per recipe with draft: true, let the user review, then publish each with update_recipe {id, draft: false}; 100 a day per account.",
+  { name: "publish_recipe", description: "Publish a recipe as the token's owner. Dose units: act[n] += dose * median(||resid leaving layer L||) / ||W_down[:, n]|| at the input of mlp.down_proj, every token. Give neurons either as a list or as a recipe string like 'L13N7956-1.0 L14N8949+1.0'. At least one example (prompt + steered output) is required. For a batch, call once per recipe with draft: true, let the user review, then publish each with update_recipe {id, draft: false}.",
     inputSchema: { type: "object", properties: {
       name: { type: "string" }, description: { type: "string" }, model: { type: "string" },
       recipe: { type: "string", description: "e.g. L13N7956-1.0 L14N8949+1.0" },

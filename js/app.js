@@ -1,10 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261028103444";
-import { createStore } from "./store.js?v=20261028103444";
-import { randomPrompt } from "./prompts.js?v=20261028103444";
+import { ABOUT_HTML } from "./about.js?v=20261028105056";
+import { createStore } from "./store.js?v=20261028105056";
+import { randomPrompt } from "./prompts.js?v=20261028105056";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261028103444";
+} from "./format.js?v=20261028105056";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -662,7 +662,7 @@ async function renderAgents(fresh = null) {
     <p>There's no batch endpoint: publish one recipe per request (the API, the MCP tool, or the Python client's
       <code>publish_many</code>, which checks every recipe first and stops cleanly at your daily limit). Pass
       <code>"draft": true</code> to stage a batch privately, look it over on the site, then publish each with
-      <code>PATCH /recipes/:id {"draft": false}</code>. Limits: 100 recipes a day with a Twitter-verified account, 20 with a picked name, more for trusted publishers (ask). Without
+      <code>PATCH /recipes/:id {"draft": false}</code>. Limits are generous backstops (1000 recipes a day with a Twitter-verified account), so imports of a few hundred just work. Without
       code, the submit page's <b>Import JSON</b> takes an array of recipes, checks them, and publishes or drafts them all.</p>
     ${block("python: bulk", `import json\nfrom neuronary import Neuronary\nnr = Neuronary(token="${tok}")\nrecipes = json.load(open("my_recipes.json"))  # a list of recipe objects\nprint(nr.publish_many(recipes, dry_run=True))   # check first\nfor r in nr.publish_many(recipes, draft=True):  # then upload as drafts\n    print(r)`)}
     <h2>HTTP</h2>
