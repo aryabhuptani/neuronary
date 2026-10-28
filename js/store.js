@@ -289,7 +289,7 @@ class SupabaseStore {
       this._all(() => this.sb.from("recipes").select(SUMMARY).order("id")),
       this._all(() => this.sb.from("recipe_stats").select("recipe_id,score,comments,reproductions,repro_partial,repro_failed").order("recipe_id")),
       u ? this._all(() => this.sb.from("votes").select("recipe_id,value").eq("user_id", u.id).order("recipe_id")) : Promise.resolve({ data: [] }),
-      this.sb.from("profiles").select("handle").eq("trusted", true),
+      this.sb.from("profiles").select("handle").or("trusted.eq.true,is_admin.eq.true"), // marked names: trusted publishers and admins
     ]);
     if (e1 || e2) throw e1 || e2;
     this.trusted = new Set((tr || []).map((p) => p.handle));

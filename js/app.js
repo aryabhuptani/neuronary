@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027201726";
-import { createStore } from "./store.js?v=20261027201726";
+import { ABOUT_HTML } from "./about.js?v=20261027201808";
+import { createStore } from "./store.js?v=20261027201808";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027201726";
+} from "./format.js?v=20261027201808";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -674,7 +674,7 @@ async function renderUser(handle, params) {
     main.innerHTML = `<div class="uhead">
         ${avatarHtml(shown, prof && prof.avatar_url, "big")}
         <div class="uid">
-          <h1>@${esc(shown)}${isTrusted(shown) ? ` <span class="ubadge" title="trusted publisher: higher daily limit">trusted</span>` : ""}${prof && prof.is_admin ? ` <span class="ubadge">admin</span>` : ""}</h1>
+          <h1>@${esc(shown)}${prof && prof.is_admin ? ` <span class="ubadge">admin</span>` : isTrusted(shown) ? ` <span class="ubadge" title="trusted publisher: higher daily limit">trusted</span>` : ""}</h1>
           <div class="ulinks">${xurl ? `<a class="btn sbtn" href="${esc(xurl)}" target="_blank" rel="noopener">${I.x}<span>@${esc(xurl.split("/").pop())} on X</span></a>` : ""}
             <a class="dim" href="${browseHref({ author: shown })}">filter the main list by @${esc(shown)}</a>
             ${!prof && !all.length ? `<span class="dim">no account or recipes under this name</span>` : ""}
