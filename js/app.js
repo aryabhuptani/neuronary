@@ -1,10 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261027231833";
-import { createStore } from "./store.js?v=20261027231833";
-import { randomPrompt } from "./prompts.js?v=20261027231833";
+import { ABOUT_HTML } from "./about.js?v=20261027232754";
+import { createStore } from "./store.js?v=20261027232754";
+import { randomPrompt } from "./prompts.js?v=20261027232754";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027231833";
+} from "./format.js?v=20261027232754";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -141,7 +141,7 @@ function cardHtml(r, on) {
   return `<article class="card" data-open="${esc(r.id)}">
     ${edgeMark(r.neurons, r.model)}
     <h3 class="name"><a class="cardlink" href="/r/${esc(r.id)}">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}</a></h3>
-    <div class="rid">${recipeHtml(r.neurons)}</div>
+    <div class="rid">${recipeHtml(r.neurons, 8)}</div>
     <div class="desc">${esc(r.description)}</div>
     <div class="tags">${r.tags.slice(0, 5).map((t) => `<span class="tag ${on.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div>
     <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span>${r.reproductions ? `<span class="cmt repro" title="reproduced by ${r.reproductions} ${r.reproductions === 1 ? "person" : "people"}">${I.repro}${r.reproductions}</span>` : ""}${whoHtml(r.author.handle)}</div>
@@ -809,7 +809,7 @@ function renderBrowse(params) {
     ${rs.map((r) => `<tr class="row" data-open="${esc(r.id)}" data-href="/r/${esc(r.id)}">
       <td class="vcol">${votesHtml(r)}</td>
       <td><div class="nm">${r.draft ? `<span class="draftbadge">draft</span>` : ""}<a class="rowlink" href="/r/${esc(r.id)}">${esc(r.name)}</a>${whoHtml(r.author.handle)}</div><div class="ds">${esc(r.description)}</div></td>
-      <td><span class="rid">${recipeHtml(r.neurons)}</span>${edgeMark(r.neurons, r.model)}</td>
+      <td><span class="rid">${recipeHtml(r.neurons, 8)}</span>${edgeMark(r.neurons, r.model)}</td>
       <td class="hide-s"><div class="tags">${r.tags.slice(0, 4).map((t) => `<span class="tag ${tags.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div></td>
       <td class="hide-s model">${esc(shortModel(r.model))}</td>
       <td><span class="cmt">${I.bubble}${r.comments}</span></td></tr>`).join("")}</tbody></table></div>`;
@@ -906,7 +906,8 @@ function recipeHtmlBlock(r, { modal }) {
     .sort((a, b) => b.score - a.score).slice(0, 6);
   const hasBase = (r.examples || []).some((e) => e.base_output);
   const studio = studioFile(r);
-  const methodTxt = `${m.op}${m.apply_to !== "all_tokens" ? " · " + m.apply_to.replace("_", " ") : " · all tokens"}${m.op === "add" ? (m.normalization === "raw" ? " · raw units" : " · ×median resid") : ""}`;
+  const units = m.normalization === "raw" ? " · raw units" : m.normalization === DEFAULT_METHOD.normalization ? " · ×median resid" : ` · ${m.normalization.replace(/_/g, " ")} units`;
+  const methodTxt = `${m.op}${m.apply_to !== "all_tokens" ? " · " + m.apply_to.replace(/_/g, " ") + " only" : " · all tokens"}${m.op === "add" ? units : ""}`;
 
   const examples = (r.examples || []).map((e, i) => `<div class="ex" data-ex="${i}">
       <div class="p">${esc(e.prompt)}</div>
@@ -969,8 +970,9 @@ function recipeHtmlBlock(r, { modal }) {
       </div>
       </div>
       <div class="blk"><div class="lab">neurons</div>
-        ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
+        ${sortNeurons(r.neurons).map((n, i) => { const u = neuronUses(n) - 1; return `<div class="nrow"${i >= 12 ? " data-fold hidden" : ""}><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
           ${u > 0 ? `<a class="in" href="/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
+        ${r.neurons.length > 12 ? `<button class="linkbtn dim" data-unfold>show all ${r.neurons.length}</button>` : ""}
       </div>
       ${r.dose_curve ? `<div class="blk"><div class="lab">dose curve</div>${curveSvg(r.dose_curve)}</div>` : ""}
       <div class="blk"><div class="lab">method <span class="unitq" data-tip="${esc(m.op === "add" && m.normalization !== "raw"
@@ -1069,6 +1071,8 @@ function wireRecipe(root, r) {
       }
     } catch (e) { flashError(e); }
   }));
+  const uf = $("[data-unfold]", root);
+  if (uf) uf.onclick = () => { $$("[data-fold]", root).forEach((x) => (x.hidden = false)); uf.remove(); };
   const seg = $("[data-exmode]", root);
   if (seg) seg.onclick = (e) => {
     const b = e.target.closest("button");

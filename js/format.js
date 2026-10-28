@@ -49,9 +49,15 @@ export function edgeMark(ns, model) {
 
 export function neuronHtml(n) {
   const d = n.dose;
-  return `<span class="k"><span class="ly">L${n.layer}</span>${n.expert != null ? "E" + n.expert : ""}N${n.neuron}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span>`;
+  // one unbreakable unit per neuron, so a long recipe wraps between neurons, never inside one
+  return `<span class="nk"><span class="k"><span class="ly">L${n.layer}</span>${n.expert != null ? "E" + n.expert : ""}N${n.neuron}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span></span>`;
 }
-export const recipeHtml = (ns) => sortNeurons(ns).map(neuronHtml).join(" ");
+// max: show that many, then "+N more" (cards); the full list lives on the recipe page
+export const recipeHtml = (ns, max = Infinity) => {
+  const all = sortNeurons(ns);
+  const shown = all.length > max ? all.slice(0, max - 1) : all;
+  return shown.map(neuronHtml).join(" ") + (shown.length < all.length ? ` <span class="nmore">+${all.length - shown.length} more</span>` : "");
+};
 
 // Parses "L13N7956-1.0 L14N8949+1" and the looser "L13 N7956 -1", "l14n8949 +0.5", "L11E11N1111+0.6".
 export function parseRecipeStr(s) {
@@ -125,6 +131,10 @@ export const NORMS = { "Qwen/Qwen3.5-4B": [2.3158, 2.9803, 2.9597, 4.3864, 5.090
 
 export function pythonSnippet(r) {
   const m = methodOf(r);
+  // the script implements add/mul on all tokens with neuronary's units; say so when a recipe uses something else
+  const off = [m.apply_to !== "all_tokens" ? `applied to ${m.apply_to.replace(/_/g, " ")} only` : "",
+    m.op === "add" && m.normalization !== DEFAULT_METHOD.normalization && m.normalization !== "raw" ? `doses in "${m.normalization}" units` : ""].filter(Boolean);
+  const caveat = off.length ? `# NOTE: this recipe is ${off.join(", ")}; this script steers every token in neuronary units, so it only approximates it.\n` : "";
   const ns = sortNeurons(r.neurons).filter((n) => pyInt(n.layer) && pyInt(n.neuron) && pyNum(n.dose))
     .map((n) => `    (${pyInt(n.layer)}, ${pyInt(n.neuron)}, ${pyNum(n.dose)}),`).join("\n");
   const prompt = (r.examples && r.examples[0] && r.examples[0].prompt) || "Tell me about yourself.";
@@ -134,7 +144,7 @@ export function pythonSnippet(r) {
   const head = `# ${oneLine(r.name)}: ${recipeStr(r.neurons.filter((n) => pyInt(n.layer) && pyInt(n.neuron) && pyNum(n.dose)))}`;
   if (m.op === "mul") {
     return `${head}
-import torch
+${caveat}import torch
 from transformers import AutoTokenizer, AutoModelForImageTextToText
 
 MODEL = "${model}"
@@ -157,7 +167,7 @@ print(tok.decode(out[0, enc["input_ids"].shape[1]:], skip_special_tokens=True))
 `;
   }
   return `${head}
-# dose units: act[n] += dose * median(||resid leaving layer L||) / ||W_down[:, n]||, at the input of mlp.down_proj, every token
+${caveat}# dose units: act[n] += dose * median(||resid leaving layer L||) / ||W_down[:, n]||, at the input of mlp.down_proj, every token
 import torch
 from transformers import AutoTokenizer, AutoModelForImageTextToText
 

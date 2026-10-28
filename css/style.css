@@ -687,3 +687,8 @@ a.who:hover { text-decoration: underline; }
 
 .rprow { display: flex; gap: 6px; }
 .rprow input { flex: 1; min-width: 0; }
+
+/* long recipes: neurons never split across lines; cards show the first few */
+.rid .nk { white-space: nowrap; }
+.rid .nmore { font-family: var(--font); font-size: 12px; color: var(--dim); white-space: nowrap; }
+[data-unfold] { margin-top: 4px; }
