@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027183201";
-import { createStore } from "./store.js?v=20261027183201";
+import { ABOUT_HTML } from "./about.js?v=20261027185821";
+import { createStore } from "./store.js?v=20261027185821";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027183201";
+} from "./format.js?v=20261027185821";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -41,7 +41,10 @@ const I = {
 // ------------------------------------------------------------------ routing
 function parseRoute() {
   if (/(^|#)(access_token|error|refresh_token)=/.test(location.hash.slice(1))) { history.replaceState(null, "", location.pathname + "#/"); }
-  const h = location.hash.replace(/^#\/?/, "");
+  return parseHash(location.hash);
+}
+function parseHash(hash) {
+  const h = hash.replace(/^#\/?/, "");
   const [path, qs] = h.split("?");
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
   const p = new URLSearchParams(qs || "");
@@ -84,6 +87,7 @@ async function route() {
     }
     return openModal(r.id);
   }
+  document.title = "neuronary";
   const wasModal = !!overlay.innerHTML;
   closeModal(true);
   modalPushed = false;
@@ -117,20 +121,21 @@ const isTrusted = (h) => !!(store.trusted && store.trusted.has(h));
 const whoHtml = (h) => `<span class="who${isTrusted(h) ? " trusted" : ""}"${isTrusted(h) ? ' title="trusted publisher"' : ""}>@${esc(h)}</span>`;
 
 function cardHtml(r, on) {
-  return `<a class="card" href="#/r/${esc(r.id)}" data-open="${esc(r.id)}">
+  return `<article class="card" data-open="${esc(r.id)}">
     ${edgeMark(r.neurons, r.model)}
-    <div class="name">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}</div>
+    <h3 class="name"><a class="cardlink" href="#/r/${esc(r.id)}">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}</a></h3>
     <div class="rid">${recipeHtml(r.neurons)}</div>
     <div class="desc">${esc(r.description)}</div>
     <div class="tags">${r.tags.slice(0, 5).map((t) => `<span class="tag ${on.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div>
     <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span>${r.reproductions ? `<span class="cmt repro" title="reproduced by ${r.reproductions} ${r.reproductions === 1 ? "person" : "people"}">${I.repro}${r.reproductions}</span>` : ""}${whoHtml(r.author.handle)}</div>
-  </a>`;
+  </article>`;
 }
 
 async function doVote(id, v) {
   const r = RECIPES.find((x) => x.id === id);
   if (!r) return;
   if (!signedIn()) return signInPrompt("vote");
+  if (!store.user().verified) return verifyPrompt("vote");
   const next = r.myVote === v ? 0 : v;
   const prev = r.myVote;
   r.score += next - prev;
@@ -155,6 +160,18 @@ function paintVotes(r) {
 }
 
 document.addEventListener("click", (e) => {
+  const brand = e.target.closest("a.brand");
+  if (brand) { qInput.value = ""; qState.tags = []; }
+  const same = e.target.closest('a[href^="#/"]');
+  if (same && !e.metaKey && !e.ctrlKey && !e.shiftKey && same.getAttribute("href") === (location.hash || "#/") && !same.closest("[data-open]")) {
+    // a link to where we already are: re-route anyway, so it leaves views without a URL (API & agents, editor, moderation)
+    e.preventDefault();
+    if (overlay.innerHTML) closeModal(true);
+    if (history.state && history.state.editor) history.replaceState(null, "", location.href);
+    editorOpen = false; listShown = false;
+    route();
+    return;
+  }
   const sb = e.target.closest("[data-submit]");
   if (sb) {
     e.preventDefault();
@@ -240,6 +257,7 @@ function flashError(e) {
   console.error(e);
   const m = document.createElement("div");
   m.className = "err";
+  m.setAttribute("role", "alert");
   m.style.cssText = "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--bg);padding:8px 14px;border-radius:4px;box-shadow:var(--shadow);z-index:60";
   m.textContent = errText(e);
   document.body.appendChild(m);
@@ -280,7 +298,9 @@ qTags.addEventListener("click", (e) => {
   searchTo(qInput.value, qState.tags.filter((t) => t !== b.dataset.untag));
 });
 
-function tagCounts(rs = RECIPES) {
+// what the public sees: aggregates (tag counts, "in N others", combinations) never count hidden recipes or drafts
+const visible = () => RECIPES.filter((r) => !r.hidden && !r.draft);
+function tagCounts(rs = visible()) {
   const c = {};
   for (const r of rs) for (const t of r.tags) c[t] = (c[t] || 0) + 1;
   return c;
@@ -311,14 +331,32 @@ function renderSuggest() {
   const items = suggestions(qInput.value);
   suggest.hidden = !items.length;
   sugIdx = Math.min(sugIdx, items.length - 1);
-  suggest.innerHTML = items.map((it, i) => `<div class="row ${sugNav && i === sugIdx ? "on" : ""}" data-i="${i}">
+  qInput.setAttribute("aria-expanded", String(!!items.length));
+  if (sugNav && items[sugIdx]) qInput.setAttribute("aria-activedescendant", "sug-" + sugIdx); else qInput.removeAttribute("aria-activedescendant");
+  suggest.innerHTML = items.map((it, i) => `<div class="row ${sugNav && i === sugIdx ? "on" : ""}" data-i="${i}" id="sug-${i}" role="option" aria-selected="${sugNav && i === sugIdx}">
     <span class="kind">${it.kind}</span>
     <span>${it.kind === "tag" ? `<span class="tag ${sugNav && i === sugIdx ? "on" : ""}">${esc(it.label)}</span>` : it.kind === "neuron" || it.kind === "model" ? `<span class="mono">${esc(it.label)}</span>` : esc(it.label)}</span>
     <span class="n">${it.n ?? ""}</span></div>`).join("");
   suggest._items = items;
 }
 
-qInput.addEventListener("input", () => { sugIdx = 0; sugNav = false; renderSuggest(); });
+let liveT = null;
+qInput.addEventListener("input", () => {
+  sugIdx = 0; sugNav = false; renderSuggest();
+  // results update as you type when the list is showing (no history entry per keystroke)
+  clearTimeout(liveT);
+  liveT = setTimeout(() => {
+    const r = parseRoute();
+    if (r.view !== "browse" || overlay.innerHTML || editorOpen) return;
+    const p = currentBrowseParams();
+    p.q = qInput.value.trim(); p.tags = qState.tags;
+    const h = browseHref(p);
+    if (h === (location.hash || "#/")) return;
+    history.replaceState(null, "", h);
+    lastListHash = h;
+    renderBrowse(new URLSearchParams(Object.entries(Object.fromEntries(Object.entries(p).filter(([, v]) => v && v.length)))));
+  }, 220);
+});
 qInput.addEventListener("focus", renderSuggest);
 qInput.addEventListener("blur", () => setTimeout(() => (suggest.hidden = true), 150));
 qInput.addEventListener("keydown", (e) => {
@@ -352,8 +390,41 @@ function matchesQuery(r, q) {
     if (!ns.every((n) => keys.has(neuronKey(n)))) return false;
     q = q.replace(/L\s*\d+\s*(?:E\s*\d+\s*)?N\s*\d+\s*(?:[+-]\s*\d*\.?\d+)?/gi, " ");
   }
-  const hay = [r.name, r.description, r.tags.join(" "), r.author.handle, r.model, recipeStr(r.neurons), (r.aliases || []).join(" ")].join(" ").toLowerCase();
-  return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w.replace(/^[#@]/, "")));
+  const { hay, words } = hayOf(r);
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => {
+    w = w.replace(/^[#@]/, "");
+    if (hay.includes(w)) return true;
+    // typo tolerance: one edit for words of 4+ letters, two for 8+
+    const k = w.length >= 8 ? 2 : w.length >= 4 ? 1 : 0;
+    return k > 0 && words.some((x) => Math.abs(x.length - w.length) <= k && editDist(x, w, k) <= k);
+  });
+}
+
+// searchable text per recipe (name, description, tags, author, model, neurons, example prompts and outputs), cached
+const hayCache = new WeakMap();
+function hayOf(r) {
+  let h = hayCache.get(r);
+  if (!h) {
+    const hay = [r.name, r.description, r.tags.join(" "), r.author.handle, r.model, recipeStr(r.neurons), (r.aliases || []).join(" "), r.search_text || ""].join(" ").toLowerCase();
+    h = { hay, words: [...new Set(hay.split(/[^a-z0-9]+/).filter((x) => x.length >= 3))] };
+    hayCache.set(r, h);
+  }
+  return h;
+}
+// Levenshtein distance, giving up early past max
+function editDist(a, b, max) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      best = Math.min(best, cur[j]);
+    }
+    if (best > max) return max + 1;
+    prev = cur;
+  }
+  return prev[b.length];
 }
 
 function filterRecipes(p) {
@@ -502,7 +573,7 @@ async function renderAgents(fresh = null) {
   const claudeCode = `claude mcp add --transport http neuronary ${mcpUrl} --header "Authorization: Bearer ${tok}"`;
   const desktop = JSON.stringify({ mcpServers: { neuronary: { command: "npx", args: ["-y", "mcp-remote", mcpUrl, "--header", `Authorization:Bearer ${tok}`] } } }, null, 2);
   const curl = `# search (no token needed)\ncurl "${base}/recipes?q=evil"\n\n# publish\ncurl -X POST "${base}/recipes" \\\n  -H "Authorization: Bearer ${tok}" -H "Content-Type: application/json" \\\n  -d '{"name": "...", "description": "...", "model": "Qwen/Qwen3.5-4B", "recipe": "L13N7956-1.0 L14N8949+1.0",\n       "tags": ["persona"], "examples": [{"prompt": "...", "output": "..."}]}'`;
-  const py = `# pip install requests; download clients/neuronary.py from the neuronary repo\nfrom neuronary import Neuronary\nnr = Neuronary(token="${tok}")\nnr.search("evil")\nnr.publish(name="...", description="...", model="Qwen/Qwen3.5-4B",\n           recipe="L13N7956-1.0 L14N8949+1.0", tags=["persona"],\n           examples=[{"prompt": "...", "output": "..."}])`;
+  const py = `# no dependencies (standard library only): download clients/neuronary.py from the neuronary repo\nfrom neuronary import Neuronary\nnr = Neuronary(token="${tok}")\nnr.search("evil")\nnr.publish(name="...", description="...", model="Qwen/Qwen3.5-4B",\n           recipe="L13N7956-1.0 L14N8949+1.0", tags=["persona"],\n           examples=[{"prompt": "...", "output": "..."}])`;
   const shellLine = `mkdir -p ~/.neuronary && printf '%s' '${tok}' > ~/.neuronary/token && chmod 600 ~/.neuronary/token`;
   const agentLine = `Set up neuronary for me: read https://neuronary.org/agents.md`;
   const anon = u && u.anonymous;
@@ -632,7 +703,22 @@ function renderBrowse(params) {
   </div>`;
 
   let body;
-  if (!rs.length) body = `<div class="empty">No recipes match.</div>`;
+  if (!rs.length) {
+    const tips = [];
+    if (p.q) {
+      // closest recipe names and tags to what was typed
+      const q = p.q.toLowerCase();
+      const cands = [...RECIPES.filter((r) => !r.draft).map((r) => ({ label: r.name, href: `#/r/${r.id}` })),
+        ...Object.keys(tagCounts()).map((t) => ({ label: t, href: browseHref({ tags: [t] }) }))]
+        .map((c) => ({ ...c, d: editDist(c.label.toLowerCase(), q, 6) })).filter((c) => c.d <= Math.max(2, Math.floor(q.length / 3)))
+        .sort((a, b) => a.d - b.d).slice(0, 4);
+      if (cands.length) tips.push(`Did you mean ${cands.map((c) => `<a href="${c.href}">${esc(c.label)}</a>`).join(", ")}?`);
+    }
+    const nf = ["tags", "model", "n", "sign", "layers", "author"].filter((k) => p[k]).length;
+    if (nf) tips.push(`${nf} filter${nf > 1 ? "s are" : " is"} on. <a href="${browseHref({ q: p.q })}">Clear filters</a>`);
+    if (p.q) tips.push(`Search covers names, descriptions, tags, authors, neuron ids like L14N8949, and example prompts and outputs.`);
+    body = `<div class="empty">No recipes match.${tips.map((t) => `<p class="dim">${t}</p>`).join("")}</div>`;
+  }
   else if (view === "cards") {
     // featured row: only on the plain home view (hot, no search or filters)
     const plain = sort === "hot" && !p.q && !["model", "tags", "n", "sign", "layers", "author"].some((k) => p[k]);
@@ -644,7 +730,7 @@ function renderBrowse(params) {
   else body = `<div class="list"><table><thead><tr><th></th><th>name</th><th>neurons</th><th class="hide-s">tags</th><th class="hide-s">model</th><th></th></tr></thead><tbody>
     ${rs.map((r) => `<tr class="row" data-open="${esc(r.id)}" data-href="#/r/${esc(r.id)}">
       <td class="vcol">${votesHtml(r)}</td>
-      <td><div class="nm">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}${whoHtml(r.author.handle)}</div><div class="ds">${esc(r.description)}</div></td>
+      <td><div class="nm">${r.draft ? `<span class="draftbadge">draft</span>` : ""}<a class="rowlink" href="#/r/${esc(r.id)}">${esc(r.name)}</a>${whoHtml(r.author.handle)}</div><div class="ds">${esc(r.description)}</div></td>
       <td><span class="rid">${recipeHtml(r.neurons)}</span>${edgeMark(r.neurons, r.model)}</td>
       <td class="hide-s"><div class="tags">${r.tags.slice(0, 4).map((t) => `<span class="tag ${tags.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div></td>
       <td class="hide-s model">${esc(shortModel(r.model))}</td>
@@ -658,7 +744,8 @@ function wireBrowse(p) {
   const set = (k, v) => { const q = { ...p, [k]: v }; go(browseHref(q)); };
   $$("[data-sort]").forEach((b) => (b.onclick = () => set("sort", b.dataset.sort)));
   $("[data-random]").onclick = () => {
-    const pool = rs.length ? rs : RECIPES;
+    const shown = filterRecipes(p).filter((r) => !r.draft);
+    const pool = shown.length ? shown : RECIPES.filter((r) => !r.draft && !r.hidden);
     if (!pool.length) return;
     modalPushed = true;
     location.hash = "#/r/" + pool[Math.floor(Math.random() * pool.length)].id;
@@ -710,7 +797,7 @@ document.addEventListener("click", () => {
 // ------------------------------------------------------------------ recipe
 function neuronUses(n) {
   const k = neuronKey(n);
-  return RECIPES.filter((r) => r.neurons.some((x) => neuronKey(x) === k)).length;
+  return visible().filter((r) => r.neurons.some((x) => neuronKey(x) === k)).length;
 }
 
 function recipeHtmlBlock(r, { modal }) {
@@ -722,13 +809,21 @@ function recipeHtmlBlock(r, { modal }) {
   const kset = (x) => x.neurons.map(neuronKey);
   // ingredients: posted recipes whose neurons are a strict subset of this one's (best-scored per neuron set)
   const bestPer = (xs) => { const m = new Map(); for (const x of xs) { const k = kset(x).sort().join(" "); if (!m.has(k) || m.get(k).score < x.score) m.set(k, x); } return [...m.values()]; };
-  const ingredients = r.neurons.length > 1 ? bestPer(RECIPES.filter((x) => x.id !== r.id && x.neurons.length < r.neurons.length && kset(x).every((k) => keys.has(k))))
+  const pool = visible();
+  const cands = r.neurons.length > 1 ? bestPer(pool.filter((x) => x.id !== r.id && x.neurons.length < r.neurons.length && kset(x).every((k) => keys.has(k))))
     .sort((a, b) => b.neurons.length - a.neurons.length || b.score - a.score) : [];
+  // a non-overlapping breakdown: biggest posted parts first, each neuron counted once; leftovers listed as bare neurons
+  const ingredients = [], covered = new Set();
+  for (const x of cands) if (kset(x).every((k) => !covered.has(k))) { ingredients.push(x); kset(x).forEach((k) => covered.add(k)); }
+  const leftover = sortNeurons(r.neurons).filter((n) => !covered.has(neuronKey(n)));
+  const doseHere = Object.fromEntries(r.neurons.map((n) => [neuronKey(n), n.dose]));
+  const doseDiffs = ingredients.flatMap((x) => x.neurons.filter((n) => doseHere[neuronKey(n)] !== n.dose)
+    .map((n) => `${neuronKey(n)} ${doseStr(doseHere[neuronKey(n)])} here, ${doseStr(n.dose)} in ${x.name}`));
   // used in: combinations that contain all of this recipe's neurons
-  const usedIn = RECIPES.filter((x) => x.id !== r.id && x.neurons.length > r.neurons.length && [...keys].every((k) => x.neurons.some((n) => neuronKey(n) === k)))
+  const usedIn = pool.filter((x) => x.id !== r.id && x.neurons.length > r.neurons.length && [...keys].every((k) => x.neurons.some((n) => neuronKey(n) === k)))
     .sort((a, b) => b.score - a.score).slice(0, 8);
   const shown = new Set([...ingredients, ...usedIn].map((x) => x.id));
-  const related = RECIPES.filter((x) => x.id !== r.id && !shown.has(x.id) && setKey(x.neurons) !== sk && x.neurons.some((n) => keys.has(neuronKey(n))))
+  const related = pool.filter((x) => x.id !== r.id && !shown.has(x.id) && setKey(x.neurons) !== sk && x.neurons.some((n) => keys.has(neuronKey(n))))
     .sort((a, b) => b.score - a.score).slice(0, 6);
   const hasBase = (r.examples || []).some((e) => e.base_output);
   const studio = studioFile(r);
@@ -737,9 +832,9 @@ function recipeHtmlBlock(r, { modal }) {
   const examples = (r.examples || []).map((e, i) => `<div class="ex" data-ex="${i}">
       <div class="p">${esc(e.prompt)}</div>
       <div class="single"><div class="o md">${md(e.output)}</div></div>
-      ${e.base_output ? `<div class="pair" hidden><div><div class="lab s">steered${e.scale && e.scale !== 1 ? " ×" + e.scale : ""}</div><div class="o md">${md(e.output)}</div></div>
+      ${e.base_output ? `<div class="pair" hidden><div><div class="lab s">steered${typeof e.scale === "number" && e.scale !== 1 ? " ×" + esc(e.scale) : ""}</div><div class="o md">${md(e.output)}</div></div>
         <div><div class="lab b">base</div><div class="o b-o md">${md(e.base_output)}</div></div></div>` : ""}
-      ${e.scale && e.scale !== 1 ? `<div class="gen">doses ×${e.scale}</div>` : ""}
+      ${typeof e.scale === "number" && e.scale !== 1 ? `<div class="gen">doses ×${esc(e.scale)}</div>` : ""}
     </div>`).join("");
 
   return `<div class="rec">
@@ -749,12 +844,23 @@ function recipeHtmlBlock(r, { modal }) {
       ${r.draft ? `<div class="hidbanner">Draft: only you can see this. <button class="btn sbtn primary" data-ract="publishdraft">Publish</button></div>` : ""}
       <h1>${esc(r.name)}</h1>
       <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}${edgeMark(r.neurons, r.model)}</div>
-      ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${ingredients.map((x) => `<a href="#/r/${esc(x.id)}">${esc(x.name)}</a>`).join(` <span class="dim">+</span> `)}</div>` : ""}
+      ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${[...ingredients.map((x) => `<a href="#/r/${esc(x.id)}">${esc(x.name)}</a>`),
+        ...leftover.map((n) => `<a href="#/n/${neuronKey(n)}" class="mono" title="no recipe posted for this neuron alone">${neuronKey(n)}</a>`)].join(` <span class="dim">+</span> `)}
+        ${doseDiffs.length ? `<div class="dim combonote">different doses: ${esc(doseDiffs.join("; "))}</div>` : ""}</div>` : ""}
       <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>`}${r.reproductions ? ` &nbsp;·&nbsp; <span class="repro">${I.repro} reproduced by ${r.reproductions}</span>` : ""}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
         ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}
 </div>
       ${recipeActions(r)}
+      <div class="mobacts">
+        <div class="vote v${r.myVote}" data-vote="${esc(r.id)}"><button class="upv" data-v="1" aria-label="upvote">${I.up}</button>
+          <span class="n">${r.score}</span><button class="downv" data-v="-1" aria-label="downvote">${I.down}</button></div>
+        <div class="copies">
+          <button class="btn ibtn" data-act="json" title="copy the recipe as JSON">${I.copy}<span>JSON</span></button>
+          <button class="btn ibtn" data-act="py" title="copy a Python script that runs it">${I.copy}<span>Python</span></button>
+          ${studio ? `<button class="btn ibtn" data-act="studio" title="download a file Neuron Studio can import">${I.download}<span>Studio</span></button>` : ""}
+        </div>
+      </div>
       <div class="desc">${esc(r.description)}</div>
       <div class="tags">${tagsHtml(r.tags)}</div>
     </div>
@@ -765,7 +871,7 @@ function recipeHtmlBlock(r, { modal }) {
         ${examples || `<div class="faint">—</div>`}
       </section>
       <section>
-        <div class="sechead"><h2>Reproduced</h2><span class="faint mono" data-rcount>${r.reproductions || 0}</span></div>
+        <div class="sechead"><h2>Reproductions</h2><span class="faint mono" data-rcount>${r.reproductions || 0}</span>${r.repro_partial || r.repro_failed ? `<span class="dim small">${[r.repro_partial ? `${r.repro_partial} partly` : "", r.repro_failed ? `${r.repro_failed} didn't` : ""].filter(Boolean).join(" · ")}</span>` : ""}</div>
         <div data-repros><div class="dim">…</div></div>
       </section>
       <section>
@@ -774,12 +880,14 @@ function recipeHtmlBlock(r, { modal }) {
       </section>
     </div>
     <aside class="rail">
+      <div class="railacts">
       <div class="vote v${r.myVote}" data-vote="${esc(r.id)}"><button class="upv" data-v="1" aria-label="upvote">${I.up}</button>
         <span class="n">${r.score}</span><button class="downv" data-v="-1" aria-label="downvote">${I.down}</button></div>
       <div class="copies">
         <button class="btn ibtn" data-act="json" title="copy the recipe as JSON">${I.copy}<span>JSON</span></button>
         <button class="btn ibtn" data-act="py" title="copy a Python script that runs it">${I.copy}<span>Python</span></button>
         ${studio ? `<button class="btn ibtn" data-act="studio" title="download a file Neuron Studio can import">${I.download}<span>Studio</span></button>` : ""}
+      </div>
       </div>
       <div class="blk"><div class="lab">neurons</div>
         ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
@@ -906,7 +1014,9 @@ function flashBtn(b) {
 
 async function openModal(id) {
   document.body.classList.add("modal-open");
-  overlay.innerHTML = `<div class="modal"><div class="sheet"><div class="dim">…</div></div></div>`;
+  modalOpener = document.activeElement;
+  overlay.innerHTML = `<div class="modal"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1"><div class="dim">…</div></div></div>`;
+  $(".sheet", overlay).focus({ preventScroll: true });
   // closes with back, Escape, or a tap on the scrim around the sheet (no close button)
   const modal = $(".modal", overlay);
   modal.onclick = (e) => { if (e.target === modal) closeModalNav(); };
@@ -918,6 +1028,8 @@ async function openModal(id) {
   if (!r) { sheet.innerHTML = `<div class="empty">No recipe called “${esc(id)}”.</div>`; return; }
   document.title = `${r.name} · neuronary`;
   sheet.innerHTML = `${recipeHtmlBlock(r, { modal: true })}`;
+  const h1 = $(".rec h1", sheet); if (h1) h1.id = "sheet-title";
+  sheet.focus({ preventScroll: true });
   wireRecipe(sheet, r);
 }
 
@@ -963,15 +1075,33 @@ function closeModalNav() {
   else location.hash = lastListHash;
 }
 
+let modalOpener = null;
 function closeModal(silent) {
   if (!overlay.innerHTML) return;
   overlay.innerHTML = "";
+  if (modalOpener && modalOpener.isConnected) modalOpener.focus({ preventScroll: true });
+  modalOpener = null;
   document.body.classList.remove("modal-open");
   document.title = "neuronary";
   if (!silent) closeModalNav();
 }
 
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && overlay.innerHTML) closeModalNav(); });
+document.addEventListener("keydown", (e) => {
+  if (!overlay.innerHTML) return;
+  if (e.key === "Escape") {
+    if (document.querySelector(".pop")) return; // a popover closes first
+    const a = document.activeElement;
+    if (a && a.matches("input, textarea") && a.value.trim()) { a.blur(); return; } // don't throw away typed text
+    closeModalNav();
+  } else if (e.key === "Tab") {
+    // keep focus inside the sheet
+    const sheet = $(".sheet", overlay);
+    const f = $$("a[href], button:not([disabled]), input, textarea, select, [tabindex]:not([tabindex='-1'])", sheet).filter((x) => x.offsetParent !== null);
+    if (!f.length) return;
+    if (e.shiftKey && (document.activeElement === f[0] || document.activeElement === sheet)) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  }
+});
 
 // comments
 // dose curve: measured effect at a few doses, as a small line chart
@@ -1001,34 +1131,40 @@ async function renderRepros(root, r) {
   const mine = u && list.find((x) => x.user_id === u.id);
   const own = u && r.user_id === u.id;
   const items = list.map((x) => `<div class="repro-item${x.hidden ? " hiddenc" : ""}">
-      <div class="rh">${I.repro}${whoHtml(x.author_handle)}<span class="faint">${esc(ago(x.created_at))}</span>${x.note ? `<span class="dim rnote">${esc(x.note)}</span>` : ""}
+      <div class="rh"><span class="rres ${esc(x.result || "yes")}">${x.result === "no" ? "didn't reproduce" : x.result === "partial" ? "partly" : `${I.repro} reproduced`}</span>${whoHtml(x.author_handle)}<span class="faint">${esc(ago(x.created_at))}</span>${x.setup ? `<span class="dim rnote">${esc(x.setup)}</span>` : ""}
         ${u && (x.user_id === u.id || u.admin) ? `<button class="dim linkbtn" data-rdel="${x.id}">delete</button>` : ""}
         ${u && u.admin ? `<button class="dim linkbtn" data-rhide="${x.id}:${x.hidden ? 0 : 1}">${x.hidden ? "unhide" : "hide"}</button>` : ""}</div>
-      ${x.prompt ? `<div class="p">${esc(x.prompt)}</div>` : ""}<div class="o md">${md(x.output)}</div></div>`).join("");
+      ${x.note ? `<div class="dim small">${esc(x.note)}</div>` : ""}${x.prompt ? `<div class="p">${esc(x.prompt)}</div>` : ""}<div class="o md">${md(x.output)}</div></div>`).join("");
   const canAdd = !own && !mine;
-  box.innerHTML = `${items || `<div class="faint">Nobody has reported reproducing this yet.</div>`}
-    ${canAdd ? `<button class="btn sbtn" data-rshow>${I.repro}<span>I reproduced this</span></button>
+  box.innerHTML = `${items || `<div class="faint">Nobody has reported running this yet.</div>`}
+    ${canAdd ? `<button class="btn sbtn" data-rshow>${I.repro}<span>I ran this</span></button>
     <form class="rform" data-rform hidden>
       <label class="f"><span>prompt</span><input data-rp value="${esc((r.examples && r.examples[0] && r.examples[0].prompt) || "")}"></label>
+      <div class="f"><span id="rres-lab">did it reproduce?</span><span class="seg" role="radiogroup" aria-labelledby="rres-lab" data-rres>
+        <button type="button" class="on" data-res="yes" role="radio" aria-checked="true">yes</button><button type="button" data-res="partial" role="radio" aria-checked="false">partly</button><button type="button" data-res="no" role="radio" aria-checked="false">no</button></span></div>
       <label class="f"><span>what the steered model said for you</span><textarea data-ro required></textarea></label>
-      <label class="f"><span>setup <span class="faint">optional: precision, sampling, library</span></span><input data-rn placeholder="bf16, greedy, transformers"></label>
+      <label class="f"><span>setup</span><input data-rsetup placeholder="bf16 transformers, Q4_K_M llama.cpp, MLX 4-bit…" maxlength="200"></label>
+      <label class="f"><span>notes <span class="faint">optional</span></span><input data-rn placeholder="dose changes, sampling, what differed"></label>
       <div class="pub"><button class="btn primary" type="submit">Post</button><button class="btn" type="button" data-rcancel>Cancel</button></div>
     </form>` : own ? `<div class="faint small">Others can mark this reproduced with their own sample.</div>` : ""}`;
   const show = $("[data-rshow]", box), form = $("[data-rform]", box);
   if (show) show.onclick = () => {
     if (!signedIn()) return signInPrompt("report a reproduction", () => renderRepros(root, r));
+    if (!store.user().verified) return verifyPrompt("report a reproduction");
     show.hidden = true; form.hidden = false; $("[data-ro]", form).focus();
   };
   if (form) {
     $("[data-rcancel]", form).onclick = () => { form.hidden = true; show.hidden = false; };
+    $$("[data-res]", form).forEach((b) => (b.onclick = () => $$("[data-res]", form).forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); })));
     form.onsubmit = async (e) => {
       e.preventDefault();
       const output = $("[data-ro]", form).value;
       if (!output.trim()) return;
       const btn = $("button[type=submit]", form); btn.disabled = true;
       try {
-        await store.reproduce(r.id, { prompt: $("[data-rp]", form).value, output, note: $("[data-rn]", form).value.trim() });
-        r.reproductions = (r.reproductions || 0) + 1;
+        const result = $("[data-rres] .on", form).dataset.res;
+        await store.reproduce(r.id, { prompt: $("[data-rp]", form).value, output, note: $("[data-rn]", form).value.trim(), setup: $("[data-rsetup]", form).value.trim(), result });
+        if (result === "yes") r.reproductions = (r.reproductions || 0) + 1;
         const rc = $("[data-rcount]", root); if (rc) rc.textContent = r.reproductions;
         const i = RECIPES.findIndex((x) => x.id === r.id); if (i >= 0) RECIPES[i].reproductions = r.reproductions;
         renderRepros(root, r);
@@ -1194,6 +1330,18 @@ function signInPrompt(why, then = null) {
   $("[data-ok]", pop).onclick = (e) => { e.preventDefault(); ok(); };
   $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); sessionStorage.removeItem("nr.reopenSubmit"); closePops(); };
   inp.onkeydown = (e) => { if (e.key === "Enter") ok(); if (e.key === "Escape") closePops(); };
+}
+
+// picked-name (anonymous) accounts can comment but not vote or report reproductions: one click links X instead
+function verifyPrompt(why) {
+  const pop = popAt("signin-pop");
+  const x = xProvider();
+  pop.innerHTML = `<div class="lab">To ${esc(why)}, link a Twitter account. Votes and reproductions count only from real accounts, so throwaway names can't stuff them.</div>
+    ${x ? `<button class="xbtn" data-x>${I.x}Link Twitter</button>` : ""}
+    <div class="foot"><a href="#" data-cancel>cancel</a></div>`;
+  const xb = $("[data-x]", pop);
+  if (xb) xb.onclick = () => store.linkWith(x).catch(flashError);
+  $("[data-cancel]", pop).onclick = (e) => { e.preventDefault(); closePops(); };
 }
 
 // ------------------------------------------------------------------ theme
@@ -1410,7 +1558,8 @@ function renderSubmit() {
       <label class="f" data-f="model"><span>model</span><input data-k="model" value="${esc(d.model)}" list="models" spellcheck="false" class="mono">
         <datalist id="models">${models.map((m) => `<option value="${esc(m)}">`).join("")}</datalist></label>
       <div class="f" data-f="neurons"><span>neurons</span>
-        <input data-paste aria-label="paste a recipe string" placeholder="paste: L13N7956-1.0 L14N8949+1.0" class="mono" spellcheck="false" style="width:100%;margin-bottom:10px">
+        <input data-paste aria-label="paste a recipe string" aria-describedby="pastehint" placeholder="paste: L13N7956-1.0 L14N8949+1.0, then Enter" class="mono" spellcheck="false" style="width:100%">
+        <div class="dim pastehint" id="pastehint" data-pastehint aria-live="polite"></div>
         <div class="nrows" data-nrows></div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><button class="addlink" data-addn>+ neuron</button>
         <span class="seg" data-op role="group" aria-label="method"><button class="${d.op !== "mul" ? "on" : ""}" data-op-v="add">add</button><button class="${d.op === "mul" ? "on" : ""}" data-op-v="mul">multiply</button></span></div>
@@ -1459,8 +1608,9 @@ function renderSubmit() {
       const k = f.dataset.f;
       f.classList.toggle("bad", !!(all && errs[k]));
       let e = $(":scope > .err", f);
-      if (all && errs[k]) { if (!e) { e = document.createElement("div"); e.className = "err"; f.appendChild(e); } e.textContent = errs[k]; }
+      if (all && errs[k]) { if (!e) { e = document.createElement("div"); e.className = "err"; e.setAttribute("role", "alert"); f.appendChild(e); } e.textContent = errs[k]; }
       else if (e) e.remove();
+      $$("input, textarea", f).forEach((x) => x.toggleAttribute("aria-invalid", !!(all && errs[k])));
     });
     $("[data-errsum]").textContent = all && errs.examples ? errs.examples : "";
   };
@@ -1491,10 +1641,17 @@ function renderSubmit() {
     const ns = parseRecipeStr(text).filter((n) => Number.isFinite(n.dose));
     if (!ns.length) return;
     d.neurons = ns.map((n) => ({ layer: String(n.layer), neuron: String(n.neuron), dose: String(n.dose), ...(n.expert != null ? { expert: String(n.expert) } : {}) }));
-    pasteIn.value = "";
+    pasteIn.value = ""; if (pasteHint) pasteHint.textContent = "";
     save(); renderNeurons();
   };
   pasteIn.onpaste = (e) => { e.preventDefault(); takePaste(e.clipboardData.getData("text")); };
+  const pasteHint = $("[data-pastehint]");
+  pasteIn.oninput = () => {
+    const ns = parseRecipeStr(pasteIn.value).filter((n) => Number.isFinite(n.dose));
+    pasteHint.textContent = !pasteIn.value.trim() ? "" : ns.length
+      ? `${ns.length} neuron${ns.length > 1 ? "s" : ""} (${ns.map(neuronStr).join(" ")}). Press Enter to use ${ns.length > 1 ? "them" : "it"}; this replaces the rows below.`
+      : "Keep typing: like L13N7956-1.0 (layer, neuron, signed dose).";
+  };
   pasteIn.onchange = () => takePaste(pasteIn.value);
   pasteIn.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); takePaste(pasteIn.value); } };
   $$(".exf").forEach((f) => $$("[data-e]", f).forEach((el) => (el.oninput = () => { d.examples[+f.dataset.ei][el.dataset.e] = el.value; save(); })));
@@ -1673,11 +1830,16 @@ function renderSubmit() {
 
 // ------------------------------------------------------------------ boot
 async function boot() {
+  // first paint from the last list this browser saw, then swap in the fresh one
+  let fresh = null, fromCache = false;
   try {
     store = await createStore(CFG);
-    RECIPES = await store.list();
+    const cached = store.cached ? store.cached() : null;
+    fresh = store.list();
+    if (cached && cached.length) { RECIPES = cached; fromCache = true; fresh.catch((e) => console.error(e)); }
+    else RECIPES = await fresh;
   } catch (e) {
-    main.innerHTML = `<div class="empty err">Couldn't load recipes: ${esc(e.message)}</div>`;
+    main.innerHTML = `<div class="empty err" role="alert">Couldn't load recipes: ${esc(e.message)}</div>`;
     return;
   }
   renderMe();
@@ -1688,6 +1850,13 @@ async function boot() {
   });
   window.addEventListener("hashchange", route);
   await route();
+  if (fromCache) fresh.then((rs) => {
+    RECIPES = rs;
+    // redraw the list underneath unless someone's mid-form
+    const lr = parseHash(lastListHash);
+    if (editorOpen || !listShown || lr.view !== "browse") return;
+    renderBrowse(lr.p);
+  }).catch(() => {});
   // back from an X sign-in started in the submit form: reopen it (the draft is in localStorage)
   const reopen = sessionStorage.getItem("nr.reopenSubmit");
   sessionStorage.removeItem("nr.reopenSubmit");

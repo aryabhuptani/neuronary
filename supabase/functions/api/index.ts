@@ -66,6 +66,7 @@ function shape(r: Record<string, any>, stats: Record<string, any> | undefined, f
     id: r.id, url: `${SITE}/#/r/${r.id}`, name: r.name, recipe: recipeStr(r.neurons), description: r.description,
     model: r.model, neurons: sorted(r.neurons), tags: r.tags, author: r.author_handle, date: r.date,
     score: stats?.score ?? 0, comments: stats?.comments ?? 0, reproductions: stats?.reproductions ?? 0,
+    reproductions_partial: stats?.repro_partial ?? 0, reproductions_failed: stats?.repro_failed ?? 0,
   };
   if (r.featured) o.featured = true;
   if (r.dose_curve) o.dose_curve = r.dose_curve;
@@ -82,12 +83,28 @@ function shape(r: Record<string, any>, stats: Record<string, any> | undefined, f
 }
 
 // ---------------------------------------------------------------- operations (shared by REST and MCP)
-async function search(p: { q?: string; tag?: string; model?: string; neuron?: string; author?: string; sort?: string; limit?: number }) {
-  const [{ data: rows, error }, { data: stats }] = await Promise.all([
-    sb.from("recipes").select(SUMMARY).eq("hidden", false).eq("draft", false).limit(5000),
-    sb.from("recipe_stats").select("recipe_id,score,comments,reproductions").limit(5000),
+// every row, 1000 at a time (a single response is capped at 1000)
+async function all(q: () => any) {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await q().range(from, from + 999);
+    if (error) throw new HttpError(500, error.message);
+    out.push(...data);
+    if (data.length < 1000) return out;
+  }
+}
+
+const SORTS = ["top", "new", "hot"];
+async function search(p: { q?: string; tag?: string; model?: string; neuron?: string; author?: string; sort?: string; limit?: number | string; offset?: number | string; page?: number | string }) {
+  if (p.sort !== undefined && p.sort !== "" && !SORTS.includes(p.sort)) throw new HttpError(400, `sort must be one of ${SORTS.join(", ")}`);
+  const limit = Math.max(1, Math.min(100, Math.floor(Number(p.limit)) || 20));
+  const offset = p.offset !== undefined && p.offset !== "" ? Math.floor(Number(p.offset))
+    : p.page !== undefined && p.page !== "" ? (Math.floor(Number(p.page)) - 1) * limit : 0;
+  if (!Number.isFinite(offset) || offset < 0) throw new HttpError(400, "offset must be 0 or more (page starts at 1)");
+  const [rows, stats] = await Promise.all([
+    all(() => sb.from("recipes").select(SUMMARY + ",search_text").eq("hidden", false).eq("draft", false).order("id")),
+    all(() => sb.from("recipe_stats").select("recipe_id,score,comments,reproductions,repro_partial,repro_failed").order("recipe_id")),
   ]);
-  if (error) throw new HttpError(500, error.message);
   const st = Object.fromEntries((stats ?? []).map((s) => [s.recipe_id, s]));
   let rs = rows ?? [];
   const tags = (p.tag ?? "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
@@ -98,7 +115,7 @@ async function search(p: { q?: string; tag?: string; model?: string; neuron?: st
   if (want.length) rs = rs.filter((r) => { const ks = new Set(r.neurons.map(nkey)); return want.every((k) => ks.has(k)); });
   const words = (p.q ?? "").replace(/L\s*\d+\s*(?:E\s*\d+\s*)?N\s*\d+\s*(?:[+-]\s*\d*\.?\d+)?/gi, " ").toLowerCase().split(/\s+/).filter(Boolean);
   if (words.length) rs = rs.filter((r) => {
-    const hay = [r.name, r.description, r.tags.join(" "), r.author_handle, r.model].join(" ").toLowerCase();
+    const hay = [r.name, r.description, r.tags.join(" "), r.author_handle, r.model, r.search_text ?? ""].join(" ").toLowerCase();
     return words.every((w) => hay.includes(w));
   });
   const score = (r: any) => st[r.id]?.score ?? 0;
@@ -106,15 +123,14 @@ async function search(p: { q?: string; tag?: string; model?: string; neuron?: st
   if (p.sort === "new") rs.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   else if (p.sort === "hot") rs.sort((a, b) => (score(b) + 1) / (age(b) + 2) ** 1.5 - (score(a) + 1) / (age(a) + 2) ** 1.5);
   else rs.sort((a, b) => score(b) - score(a));
-  const limit = Math.max(1, Math.min(100, Number(p.limit) || 20));
-  return { count: rs.length, recipes: rs.slice(0, limit).map((r) => shape(r, st[r.id])) };
+  return { count: rs.length, offset, limit, recipes: rs.slice(offset, offset + limit).map((r) => shape(r, st[r.id])) };
 }
 
 async function getRecipe(id: string) {
   const { data: r, error } = await sb.from("recipes").select("*").eq("id", id).eq("hidden", false).eq("draft", false).maybeSingle();
   if (error) throw new HttpError(500, error.message);
   if (!r) throw new HttpError(404, `no recipe ${id}`);
-  const { data: st } = await sb.from("recipe_stats").select("score,comments,reproductions").eq("recipe_id", id).maybeSingle();
+  const { data: st } = await sb.from("recipe_stats").select("score,comments,reproductions,repro_partial,repro_failed").eq("recipe_id", id).maybeSingle();
   return shape(r, st ?? undefined, true);
 }
 
@@ -156,7 +172,7 @@ async function publish(u: User, body: Record<string, any>) {
   }
   const row = { ...pick(body, false), user_id: me.id, author_handle: me.handle, author_url: me.url, origin: "site", hidden: false };
   const { data, error } = await sb.from("recipes").insert(row).select("id").single();
-  if (error) throw new HttpError(400, friendly(error.message));
+  if (error) throw new HttpError(/^rate limit/.test(error.message) ? 429 : 400, friendly(error.message));
   return { id: data.id, url: `${SITE}/#/r/${data.id}` };
 }
 
@@ -190,7 +206,7 @@ async function comment(u: User, id: string, body: { body?: string; parent_id?: n
 }
 
 // "I ran it and it worked": the reproducer's own output, counted on the recipe
-async function reproduce(u: User, id: string, body: { output?: string; prompt?: string; note?: string }) {
+async function reproduce(u: User, id: string, body: { output?: string; prompt?: string; note?: string; setup?: string; result?: string }) {
   const me = need(u);
   if (!body.output || !String(body.output).trim()) throw new HttpError(400, "output: paste what the steered model said for you");
   const { data: r } = await sb.from("recipes").select("user_id").eq("id", id).eq("hidden", false).eq("draft", false).maybeSingle();
@@ -199,8 +215,10 @@ async function reproduce(u: User, id: string, body: { output?: string; prompt?: 
   const { count } = await sb.from("reproductions").select("id", { count: "exact", head: true }).eq("user_id", me.id)
     .gt("created_at", new Date(Date.now() - 3600e3).toISOString());
   if ((count ?? 0) >= 30) throw new HttpError(429, "rate limit: 30 reproductions an hour");
-  const row = { recipe_id: id, user_id: me.id, author_handle: me.handle, output: String(body.output),
-    prompt: body.prompt ? String(body.prompt) : null, note: body.note ? String(body.note) : null };
+  const result = body.result ?? "yes";
+  if (!["yes", "partial", "no"].includes(result)) throw new HttpError(400, "result: yes, partial or no");
+  const row = { recipe_id: id, user_id: me.id, author_handle: me.handle, output: String(body.output), result,
+    prompt: body.prompt ? String(body.prompt) : null, note: body.note ? String(body.note) : null, setup: body.setup ? String(body.setup).slice(0, 200) : null };
   const { data, error } = await sb.from("reproductions").upsert(row, { onConflict: "recipe_id,user_id" }).select("id").single();
   if (error) throw new HttpError(400, error.message);
   return { id: data.id, url: `${SITE}/#/r/${id}` };
@@ -247,8 +265,10 @@ const TOOLS = [
       dose_curve: { type: "object" }, draft: { type: "boolean", description: "false publishes a draft" } }, required: ["id"] } },
   { name: "comment", description: "Comment on a recipe (optionally replying to a top-level comment).",
     inputSchema: { type: "object", properties: { id: { type: "string" }, body: { type: "string" }, parent_id: { type: "integer" } }, required: ["id", "body"] } },
-  { name: "report_reproduction", description: "Say you reproduced someone else's recipe, with the steered output you got (and the prompt). Shown on the recipe and counted. One per recipe per user; sending again replaces yours.",
-    inputSchema: { type: "object", properties: { id: { type: "string" }, output: { type: "string" }, prompt: { type: "string" }, note: { type: "string", description: "setup, e.g. bf16, greedy, transformers" } }, required: ["id", "output"] } },
+  { name: "report_reproduction", description: "Report your own run of someone else's recipe: whether it reproduced (yes / partial / no), the steered output you got, the prompt and your setup. Shown on the recipe and counted. One per recipe per user; sending again replaces yours.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, output: { type: "string" }, prompt: { type: "string" },
+      result: { type: "string", enum: ["yes", "partial", "no"], description: "default yes" },
+      setup: { type: "string", description: "precision and backend, e.g. bf16 transformers, Q4_K_M llama.cpp" }, note: { type: "string" } }, required: ["id", "output"] } },
   { name: "vote", description: "Vote on a recipe: 1 up, -1 down, 0 to clear.",
     inputSchema: { type: "object", properties: { id: { type: "string" }, value: { type: "integer", enum: [-1, 0, 1] } }, required: ["id", "value"] } },
 ];
@@ -309,6 +329,8 @@ Deno.serve(async (req) => {
     const body = ["POST", "PATCH"].includes(req.method) ? await req.json().catch(() => ({})) : {};
     let m;
     let result: unknown;
+    // public reads can be cached briefly; anything with a token can't
+    const cache = req.method === "GET" && !u && path !== "/me" ? { "Cache-Control": "public, max-age=30, s-maxage=30" } : { "Cache-Control": "no-store" };
     if (req.method === "GET" && (path === "/" || path === "/recipes")) result = await search(Object.fromEntries(url.searchParams));
     else if (req.method === "GET" && path === "/me") { const me = need(u); result = { handle: me.handle, url: me.url }; }
     else if (req.method === "POST" && path === "/recipes") result = await publish(u, body);
@@ -320,7 +342,7 @@ Deno.serve(async (req) => {
     else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/reproductions$/)) && req.method === "POST") result = await reproduce(u, m[1], body);
     else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/vote$/)) && req.method === "POST") result = await vote(u, m[1], Number(body.value));
     else throw new HttpError(404, "not found; see https://neuronary.org/#/about");
-    return Response.json(result, { headers: CORS });
+    return Response.json(result, { headers: { ...CORS, ...cache } });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
     return Response.json({ error: (e as Error).message }, { status, headers: CORS });

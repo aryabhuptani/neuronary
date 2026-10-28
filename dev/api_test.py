@@ -67,14 +67,14 @@ FIX = make_fixture()
 tag = secrets.token_hex(3)
 users, recipes = [], []
 try:
-    # verified user (as if from X): admin-created with a user_name, then password sign-in
-    email, pw = f"apitest_{tag}@example.com", secrets.token_urlsafe(16)
-    s, d = call("POST", URL + "/auth/v1/admin/users", SVC, {"email": email, "password": pw, "email_confirm": True,
-                                                           "user_metadata": {"user_name": f"apitest_{tag}"}}, key=SVC)
-    check("create verified user", s == 200, d)
-    users.append(d["id"])
-    s, d = call("POST", URL + "/auth/v1/token?grant_type=password", body={"email": email, "password": pw})
-    jwt = d["access_token"]
+    # verified user: email sign-up is off, so a picked-name account made trusted by the service role stands in for an
+    # X-linked one (is_verified() = X identity, trusted publisher or admin)
+    s, d = call("POST", URL + "/auth/v1/signup", body={"data": {}})
+    check("create test user", s == 200, d)
+    jwt, uid = d["access_token"], d["user"]["id"]
+    users.append(uid)
+    call("POST", URL + "/rest/v1/rpc/claim_handle", jwt, {"h": f"apitest_{tag}"})
+    call("PATCH", URL + f"/rest/v1/profiles?id=eq.{uid}", SVC, {"trusted": True}, key=SVC)
     s, tok = call("POST", URL + "/rest/v1/rpc/create_api_token", jwt, {"token_name": "test"})
     check("verified user gets a token", s == 200 and str(tok).startswith("nry_"), tok)
 

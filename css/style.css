@@ -143,7 +143,7 @@ img.avatar { display: block; object-fit: cover; background: var(--raise); }
 .card .rid { margin-top: 3px; font-size: 12px; }
 .card .desc { margin-top: 10px; color: var(--dim); font-size: 13px; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2;
   -webkit-box-orient: vertical; overflow: hidden; }
-.card .tags { margin-top: auto; padding-top: 14px; max-height: 50px; overflow: hidden; }
+.card .tags { margin-top: auto; padding-top: 14px; max-height: 36px; overflow: hidden; } /* one full row: extra tags wrap out of sight */
 .card .foot { display: flex; align-items: center; gap: 14px; height: 42px; margin-top: 12px; border-top: 1px solid var(--raise); font-size: 12.5px; }
 .card .foot .who { margin-left: auto; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -210,7 +210,7 @@ body.list-mode { background: var(--bg); }
 .home .more { display: inline-block; margin-top: 14px; font-size: 13px; }
 
 /* ---------- recipe ---------- */
-.rec { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-areas: "head rail" "body rail"; column-gap: 56px; align-items: start; }
+.rec { display: grid; grid-template-columns: minmax(0, 1fr) 320px; grid-template-rows: min-content 1fr; grid-template-areas: "head rail" "body rail"; column-gap: 56px; align-items: start; }
 .rec .rhead { grid-area: head; }
 .rec .rbody { grid-area: body; }
 .rec .rail { grid-area: rail; }
@@ -362,7 +362,7 @@ body.modal-open .fab { display: none !important; }
 
 /* small screens */
 @media (max-width: 900px) {
-  .rec { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "rail" "body"; }
+  .rec { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "head" "body" "rail"; }
   .rec .rail { margin-top: 24px; }
   .cols { grid-template-columns: 1fr; }
   .submit { grid-template-columns: 1fr; }
@@ -627,3 +627,30 @@ html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh
 .chk { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 0 0 12px; }
 .small { font-size: 12px; }
 @media (max-width: 640px) { .feathead { padding: 14px 14px 0; } }
+
+/* cards are articles with a stretched link (no buttons inside a link); list rows link by name */
+.card { position: relative; }
+.card .name { margin: 0; font-size: 17px; }
+.card .cardlink { color: inherit; text-decoration: none; }
+.card .cardlink::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.card .cardlink:focus-visible { outline: none; }
+.card:has(.cardlink:focus-visible) { box-shadow: 0 0 0 2px var(--accent, #0284c7); }
+.card .votes, .card .edges, .card .tag { position: relative; z-index: 1; }
+.list .rowlink { color: inherit; text-decoration: none; }
+.list .rowlink:hover { text-decoration: underline; }
+/* recipe sheet: on phones the vote and exports sit under the title; examples come before the side panel */
+.mobacts { display: none; }
+@media (max-width: 900px) {
+  .mobacts { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .mobacts .copies { display: flex; gap: 6px; flex-wrap: wrap; }
+  .rail .railacts { display: none; }
+  .rec .rail { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
+}
+.combonote { font-size: 12px; margin-top: 4px; }
+.pastehint { font-size: 12px; min-height: 16px; margin: 4px 0 8px; }
+.rres { display: inline-flex; align-items: center; gap: 3px; font-weight: 500; }
+.rres.yes { color: #16a34a; } .rres.partial { color: var(--warn); } .rres.no { color: var(--bad); }
+:root[data-theme="dark"] .rres.yes { color: #4ade80; }
+.rform .seg { align-self: start; }
+.sheet:focus { outline: none; }
+.o.md p, .o.md li { white-space: pre-wrap; }

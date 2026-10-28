@@ -123,6 +123,18 @@ try:
         if s < 400 and isinstance(d, list) and d:
             made.append(d[0]["id"])
 
+    # editable user metadata can't claim an X handle (or admin)
+    s, d = call("PUT", "/auth/v1/user", ta, {"data": {"user_name": "_lyraaaa_", "preferred_username": "_lyraaaa_"}})
+    s, d = call("GET", f"/rest/v1/profiles?id=eq.{ua}&select=x_handle,is_admin")
+    check("metadata can't set x_handle or admin", s == 200 and d and d[0]["x_handle"] is None and d[0]["is_admin"] is False, d)
+    # example fields are type-checked (scale was an XSS vector)
+    s, d = call("POST", "/rest/v1/recipes", ta, recipe(f"rls-xss-{tag}", examples=[{"prompt": "hi", "output": "yo", "scale": "<img src=x onerror=alert(1)>"}]))
+    check("non-numeric example scale refused", s >= 400, d)
+    s, d = call("POST", "/rest/v1/recipes", ta, recipe(f"rls-samp-{tag}", sampling={"temperature": "1); import os#"}))
+    check("non-numeric sampling refused", s >= 400, d)
+    s, d = call("POST", "/rest/v1/recipes", ta, recipe(f"rls-pad-{tag}", name="x" + " " * 200 + "y"))
+    check("space-padded name refused", s >= 400, d)
+
     # daily limit: users can't raise their own; at the limit the error says when the next slot opens
     s, d = call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", ta, {"recipe_limit": 999}, prefer="return=representation")
     check("can't raise own recipe limit", not (s == 200 and d and d[0].get("recipe_limit") == 999), d)
@@ -146,6 +158,12 @@ try:
     check("owner can edit", row.get("name") == "renamed", d)
     check("owner can't move ownership or self-hide", row.get("user_id") == ua and row.get("author_handle") == ha and row.get("hidden") is False, row)
 
+    s, d = call("POST", "/rest/v1/votes", tb, {"recipe_id": ra, "user_id": ub, "value": 1})
+    check("picked-name accounts can't vote", s >= 400, d)
+    s, d = call("POST", "/rest/v1/reproductions", tb, {"recipe_id": ra, "output": "x", "author_handle": ""})
+    check("picked-name accounts can't report reproductions", s >= 400, d)
+    # B becomes verified (trusted stands in for a linked X account in tests)
+    call("PATCH", f"/rest/v1/profiles?id=eq.{ub}", body={"trusted": True}, key=SERVICE, token=SERVICE)
     s, d = call("POST", "/rest/v1/votes", tb, {"recipe_id": ra, "user_id": ub, "value": 1})
     check("vote", s == 201, d)
     s, d = call("POST", "/rest/v1/votes", tb, {"recipe_id": ra, "user_id": ua, "value": 1})

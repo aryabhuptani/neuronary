@@ -59,7 +59,7 @@ class LocalStore {
 
   user() {
     const h = LS.get("nr.handle", null);
-    return h ? { handle: h, needsHandle: false, anonymous: false, admin: false } : null;
+    return h ? { handle: h, needsHandle: false, anonymous: false, admin: false, verified: true } : null;
   }
   providers() { return []; }
   async claimHandle(h) { return this.signIn(h); }
@@ -153,15 +153,8 @@ class SupabaseStore {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.4");
     // PKCE: OAuth comes back as ?code=... (not #access_token=..., which the hash router would read as a page)
     this.sb = createClient(this.cfg.supabaseUrl, this.cfg.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" } });
-    // a tab opened before the PKCE switch can still come back with implicit-flow tokens in the hash (#access_token=...,
-    // possibly after a route like #/#access_token=...): finish that sign-in instead of dropping it
-    const implicit = location.hash.match(/access_token=([^&#]+).*refresh_token=([^&#]+)/) || location.hash.match(/refresh_token=([^&#]+).*access_token=([^&#]+)/);
-    if (implicit) {
-      const at = location.hash.match(/access_token=([^&#]+)/)[1], rt = location.hash.match(/refresh_token=([^&#]+)/)[1];
-      await this.sb.auth.setSession({ access_token: decodeURIComponent(at), refresh_token: decodeURIComponent(rt) }).catch((e) => console.error(e));
-      history.replaceState(null, "", location.pathname + (sessionStorage.getItem("nr.returnTo") || "#/"));
-      sessionStorage.removeItem("nr.returnTo");
-    }
+    // Tokens in the address bar (#access_token=...) are never accepted: a link could sign you into someone else's
+    // account. PKCE codes only work in the browser that started the sign-in. app.js strips any leftovers.
     const { data, error } = await this.sb.auth.getSession();
     if (error) throw error;
     // clean the OAuth leftovers out of the address bar and go back to the page sign-in started from
@@ -175,9 +168,6 @@ class SupabaseStore {
     }
     this.session = data.session;
     await this._loadProfile();
-    // fail fast if the API is unreachable, so createStore can fall back
-    const { error: e2 } = await this.sb.from("recipes").select("id").limit(1);
-    if (e2) throw e2;
     this.sb.auth.onAuthStateChange(async (_e, s) => {
       const before = this.session && this.session.user && this.session.user.id;
       const after = s && s.user && s.user.id;
@@ -193,7 +183,7 @@ class SupabaseStore {
     const u = this.session && this.session.user;
     this.profile = null;
     if (!u) return;
-    const { data } = await this.sb.from("profiles").select("handle,x_handle,is_admin,avatar_url").eq("id", u.id).maybeSingle();
+    const { data } = await this.sb.from("profiles").select("handle,x_handle,is_admin,avatar_url,trusted").eq("id", u.id).maybeSingle();
     this.profile = data || null;
   }
 
@@ -206,6 +196,8 @@ class SupabaseStore {
       id: u.id, handle: p ? p.handle : null, needsHandle: !p, admin: !!(p && p.is_admin),
       anonymous: !!u.is_anonymous, url: p && p.x_handle ? `https://x.com/${p.x_handle}` : undefined,
       avatar: p ? p.avatar_url : null,
+      // matches the database's is_verified(): a linked X account, or a trusted publisher / admin
+      verified: !!((u.identities || []).some((i) => i.provider === "x" || i.provider === "twitter") || (p && (p.trusted || p.is_admin))),
     };
   }
   providers() { return this.cfg.authProviders || []; }
@@ -245,6 +237,27 @@ class SupabaseStore {
   }
   onAuth(f) { this.listeners.push(f); }
 
+  // every row of a query, 1000 at a time (the API caps a single response at 1000)
+  async _all(q) {
+    const out = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await q().range(from, from + 999);
+      if (error) return { data: null, error };
+      out.push(...data);
+      if (data.length < 1000) return { data: out, error: null };
+    }
+  }
+
+  // the last list this browser saw, for an instant first paint; null if none
+  cached() {
+    try {
+      const c = JSON.parse(localStorage.getItem("nr.cache"));
+      if (!c || !Array.isArray(c.recipes)) return null;
+      this.trusted = new Set(c.trusted || []);
+      return c.recipes;
+    } catch { return null; }
+  }
+
   _row(r) {
     return normalize({ ...r, author: { handle: r.author_handle, url: r.author_url || undefined }, date: r.date || r.created_at },
       r.origin === "repo" ? "repo" : "db");
@@ -253,17 +266,19 @@ class SupabaseStore {
   async list() {
     const u = this.user();
     const [{ data: rows, error: e1 }, { data: stats, error: e2 }, mine, { data: tr }] = await Promise.all([
-      this.sb.from("recipes").select(SUMMARY).limit(5000),
-      this.sb.from("recipe_stats").select("recipe_id,score,comments,reproductions").limit(5000),
-      u ? this.sb.from("votes").select("recipe_id,value").eq("user_id", u.id) : Promise.resolve({ data: [] }),
+      this._all(() => this.sb.from("recipes").select(SUMMARY).order("id")),
+      this._all(() => this.sb.from("recipe_stats").select("recipe_id,score,comments,reproductions,repro_partial,repro_failed").order("recipe_id")),
+      u ? this._all(() => this.sb.from("votes").select("recipe_id,value").eq("user_id", u.id).order("recipe_id")) : Promise.resolve({ data: [] }),
       this.sb.from("profiles").select("handle").eq("trusted", true),
     ]);
     if (e1 || e2) throw e1 || e2;
     this.trusted = new Set((tr || []).map((p) => p.handle));
     const st = Object.fromEntries((stats || []).map((s) => [s.recipe_id, s]));
     const mv = Object.fromEntries((mine.data || []).map((v) => [v.recipe_id, v.value]));
-    return (rows || []).map((r) => ({ ...this._row(r), score: st[r.id]?.score ?? 0, comments: st[r.id]?.comments ?? 0,
-      reproductions: st[r.id]?.reproductions ?? 0, myVote: mv[r.id] || 0 }));
+    const out = (rows || []).map((r) => ({ ...this._row(r), score: st[r.id]?.score ?? 0, comments: st[r.id]?.comments ?? 0,
+      reproductions: st[r.id]?.reproductions ?? 0, repro_partial: st[r.id]?.repro_partial ?? 0, repro_failed: st[r.id]?.repro_failed ?? 0, myVote: mv[r.id] || 0 }));
+    try { localStorage.setItem("nr.cache", JSON.stringify({ at: Date.now(), trusted: [...this.trusted], recipes: out })); } catch { /* full */ }
+    return out;
   }
 
   async get(id) {
@@ -272,10 +287,11 @@ class SupabaseStore {
     if (!data) return null;
     const u = this.user();
     const [{ data: st }, mine] = await Promise.all([
-      this.sb.from("recipe_stats").select("score,comments,reproductions").eq("recipe_id", id).maybeSingle(),
+      this.sb.from("recipe_stats").select("score,comments,reproductions,repro_partial,repro_failed").eq("recipe_id", id).maybeSingle(),
       u ? this.sb.from("votes").select("value").eq("recipe_id", id).eq("user_id", u.id).maybeSingle() : Promise.resolve({ data: null }),
     ]);
-    return { ...this._row(data), score: st?.score ?? 0, comments: st?.comments ?? 0, reproductions: st?.reproductions ?? 0, myVote: mine.data?.value || 0 };
+    return { ...this._row(data), score: st?.score ?? 0, comments: st?.comments ?? 0, reproductions: st?.reproductions ?? 0,
+      repro_partial: st?.repro_partial ?? 0, repro_failed: st?.repro_failed ?? 0, myVote: mine.data?.value || 0 };
   }
 
   _need() {
@@ -377,15 +393,16 @@ class SupabaseStore {
 
   // reproductions: other people's runs of a recipe, with their own sample
   async reproductions(id) {
-    const { data, error } = await this.sb.from("reproductions").select("id,author_handle,prompt,output,note,created_at,user_id,hidden")
+    const { data, error } = await this.sb.from("reproductions").select("id,author_handle,prompt,output,note,setup,result,created_at,user_id,hidden")
       .eq("recipe_id", id).order("created_at");
     if (error) throw error;
     return data || [];
   }
 
-  async reproduce(id, { prompt, output, note }) {
+  async reproduce(id, { prompt, output, note, setup, result = "yes" }) {
     this._need();
-    const { error } = await this.sb.from("reproductions").insert({ recipe_id: id, prompt: prompt || null, output, note: note || null, author_handle: "" });
+    const { error } = await this.sb.from("reproductions").insert({ recipe_id: id, prompt: prompt || null, output, note: note || null,
+      setup: setup || null, result, author_handle: "" });
     if (error) throw new Error(/duplicate key/.test(error.message) ? "you already reported a reproduction of this recipe" : error.message);
   }
 

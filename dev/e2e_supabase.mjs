@@ -55,6 +55,15 @@ try {
   await shot("signed_in");
   await page.waitForNetworkIdle({ idleTime: 500 }); // signing in reloads the list to show your votes
 
+  // picked-name accounts can't vote: they're asked to link Twitter. Then the test account is made trusted
+  // (stands in for a linked X account) and votes.
+  await page.click(`.card[data-open="${FIX}"] .votes button[data-v="1"]`);
+  check("picked-name vote asks to link Twitter", await waitFor(() => /link a Twitter account/.test(document.querySelector(".signin-pop")?.textContent || "")));
+  await page.keyboard.press("Escape");
+  await page.click("body");
+  await fetch(`${SB}/rest/v1/profiles?id=eq.${userId}`, { method: "PATCH", headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" }, body: JSON.stringify({ trusted: true }) });
+  await page.reload({ waitUntil: "networkidle0" });
+  await waitFor((f) => !!document.querySelector(`.card[data-open="${f}"]`), 8000, FIX);
   await page.click(`.card[data-open="${FIX}"] .votes button[data-v="1"]`);
   check("vote counts", await waitFor((f) => document.querySelector(`.card[data-open="${f}"] .votes`).classList.contains("v1"), 8000, FIX));
   await page.waitForNetworkIdle({ idleTime: 500 });

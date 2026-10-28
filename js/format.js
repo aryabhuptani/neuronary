@@ -28,10 +28,10 @@ export function edgeLayer(n, model) {
   return L && n.layer >= L - EDGE ? "late" : null;
 }
 const EDGE_WHY = {
-  early: "the first ~5 layers mostly act on surface text, so pushes tend to be word-literal (a token, a spelling) " +
-    "rather than a persona or concept. The residual is small there too, so doses hit harder.",
-  late: "the last ~5 layers sit close to the output and mostly push specific words, so effects tend to be " +
-    "word-literal rather than a persona or concept.",
+  early: "the first ~5 layers often act on surface text, so pushes can come out word-literal (a token, a spelling) " +
+    "rather than a persona or concept. Plenty don't: check the examples. The residual is small there too, so doses hit harder.",
+  late: "the last ~5 layers sit close to the output and often push specific words, so effects can be word-literal " +
+    "rather than a persona or concept. Plenty don't: check the examples.",
 };
 // one warning per kind (early, late), however many neurons fall in it
 export function edgeTips(ns, model) {
@@ -102,27 +102,37 @@ export function samplingText(r) {
   return parts.join(" · ");
 }
 
+// Everything recipe-controlled that goes into the Python script is a validated number or a JSON-quoted string, so a
+// crafted recipe can't put code into a script people run on their machines.
+const pyNum = (x) => (typeof x === "number" && Number.isFinite(x) ? String(x) : null);
+const pyInt = (x) => (Number.isInteger(x) && x >= 0 ? String(x) : null);
+const oneLine = (s) => String(s ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ").slice(0, 200);
 function genArgs(r) {
   const s = r.sampling || {};
   const a = [];
-  if (s.temperature) a.push("do_sample=True", `temperature=${s.temperature}`);
+  const t = pyNum(s.temperature), tp = pyNum(s.top_p), tk = pyInt(s.top_k), rp = pyNum(s.repetition_penalty);
+  if (t && +t > 0) a.push("do_sample=True", `temperature=${t}`);
   else a.push("do_sample=False");
-  if (s.temperature && s.top_p) a.push(`top_p=${s.top_p}`);
-  if (s.temperature && s.top_k) a.push(`top_k=${s.top_k}`);
-  if (s.repetition_penalty) a.push(`repetition_penalty=${s.repetition_penalty}`);
+  if (t && +t > 0 && tp) a.push(`top_p=${tp}`);
+  if (t && +t > 0 && tk) a.push(`top_k=${tk}`);
+  if (rp) a.push(`repetition_penalty=${rp}`);
   return a.join(", ") + ", ";
 }
 
 export function pythonSnippet(r) {
   const m = methodOf(r);
-  const ns = sortNeurons(r.neurons).map((n) => `    (${n.layer}, ${n.neuron}, ${n.dose}),`).join("\n");
+  const ns = sortNeurons(r.neurons).filter((n) => pyInt(n.layer) && pyInt(n.neuron) && pyNum(n.dose))
+    .map((n) => `    (${pyInt(n.layer)}, ${pyInt(n.neuron)}, ${pyNum(n.dose)}),`).join("\n");
   const prompt = (r.examples && r.examples[0] && r.examples[0].prompt) || "Tell me about yourself.";
+  const model = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(r.model) ? r.model : "Qwen/Qwen3.5-4B";
+  const think = r.sampling && r.sampling.thinking === true ? "True" : "False";
+  const head = `# ${oneLine(r.name)}: ${recipeStr(r.neurons.filter((n) => pyInt(n.layer) && pyInt(n.neuron) && pyNum(n.dose)))}`;
   if (m.op === "mul") {
-    return `# ${r.name}: ${recipeStr(r.neurons)}
+    return `${head}
 import torch
 from transformers import AutoTokenizer, AutoModelForImageTextToText
 
-MODEL = "${r.model}"
+MODEL = "${model}"
 NEURONS = [  # (layer, neuron, factor): activation *= factor at the input of mlp.down_proj, every token
 ${ns}
 ]
@@ -136,17 +146,17 @@ for l, n, f in NEURONS:
     layers[l].mlp.down_proj.register_forward_pre_hook(hook)
 
 msgs = [{"role": "user", "content": ${JSON.stringify(prompt)}}]
-enc = tok.apply_chat_template(msgs, add_generation_prompt=True, enable_thinking=${r.sampling && r.sampling.thinking ? "True" : "False"}, return_tensors="pt", return_dict=True).to(model.device)
+enc = tok.apply_chat_template(msgs, add_generation_prompt=True, enable_thinking=${think}, return_tensors="pt", return_dict=True).to(model.device)
 out = model.generate(**enc, ${genArgs(r)}max_new_tokens=512)
 print(tok.decode(out[0, enc["input_ids"].shape[1]:], skip_special_tokens=True))
 `;
   }
-  return `# ${r.name}: ${recipeStr(r.neurons)}
+  return `${head}
 # dose units: act[n] += dose * median(||resid leaving layer L||) / ||W_down[:, n]||, at the input of mlp.down_proj, every token
 import torch
 from transformers import AutoTokenizer, AutoModelForImageTextToText
 
-MODEL = "${r.model}"
+MODEL = "${model}"
 NEURONS = [  # (layer, neuron, dose)
 ${ns}
 ]
@@ -179,7 +189,7 @@ for l, n, dose in NEURONS:
     layers[l].mlp.down_proj.register_forward_pre_hook(hook)
 
 msgs = [{"role": "user", "content": ${JSON.stringify(prompt)}}]
-enc = tok.apply_chat_template(msgs, add_generation_prompt=True, enable_thinking=${r.sampling && r.sampling.thinking ? "True" : "False"}, return_tensors="pt", return_dict=True).to(model.device)
+enc = tok.apply_chat_template(msgs, add_generation_prompt=True, enable_thinking=${think}, return_tensors="pt", return_dict=True).to(model.device)
 out = model.generate(**enc, ${genArgs(r)}max_new_tokens=512)
 print(tok.decode(out[0, enc["input_ids"].shape[1]:], skip_special_tokens=True))
 `;
@@ -282,7 +292,8 @@ export function md(text) {
   const parts = src.split(/^```[^\n]*\n?/m); // alternating prose / code
   parts.forEach((part, k) => {
     if (k % 2 === 1) { out.push(`<pre><code>${part.replace(/\n$/, "")}</code></pre>`); return; }
-    for (const block of part.split(/\n{2,}/)) {
+    for (const block of part.split(/(\n{2,})/)) {
+      if (/^\n+$/.test(block)) { if (block.length > 2) out.push(`<div class="mdgap" style="height:${(block.length - 2) * 1.5}em"></div>`); continue; }
       if (!block.trim()) continue;
       const lines = block.split("\n");
       const h = /^(#{1,6})\s+(.*)$/.exec(block);

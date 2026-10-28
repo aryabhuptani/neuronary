@@ -9,11 +9,12 @@ const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 
 function describe(kind: string, row: Record<string, unknown>): string {
   if (kind === "comment") return `New comment:\n\n${row.body}`;
-  if (kind === "reproduction") return `New reproduction report (someone's own run of a recipe):\n\nprompt: ${row.prompt ?? ""}\noutput: ${row.output}\nnote: ${row.note ?? ""}`;
+  if (kind === "reproduction") return `New reproduction report (someone's own run of a recipe):\n\nresult: ${row.result ?? ""}\nsetup: ${row.setup ?? ""}\nprompt: ${row.prompt ?? ""}\noutput: ${row.output}\nnote: ${row.note ?? ""}`;
   const ex = ((row.examples as Array<Record<string, string>>) ?? [])
-    .map((e, i) => `example ${i + 1} prompt: ${e.prompt}\nexample ${i + 1} output: ${e.output}`).join("\n");
+    .map((e, i) => `example ${i + 1} prompt: ${e.prompt}\nexample ${i + 1} output: ${e.output}` + (e.base_output ? `\nexample ${i + 1} unsteered output: ${e.base_output}` : "")).join("\n");
   return `New recipe:\n\nname: ${row.name}\ndescription: ${row.description}\ntags: ${(row.tags as string[] ?? []).join(", ")}\n` +
-    `source: ${row.source ?? ""}\nnotes: ${row.notes ?? ""}\n${ex}`;
+    `source: ${row.source ?? ""}\nnotes: ${row.notes ?? ""}\naliases: ${((row.aliases as string[]) ?? []).join(", ")}\n` +
+    `dose curve measures: ${(row.dose_curve as { metric?: string } | null)?.metric ?? ""}\n${ex}`;
 }
 
 async function ask(text: string): Promise<{ verdict: string; reason: string; model: string }> {
