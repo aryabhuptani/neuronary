@@ -383,9 +383,9 @@ body.modal-open .fab { display: none !important; }
   body.page-submit .fab { display: none; }
   /* bottom sheet: opens at 2/3 height, scrolls up to fill the screen */
   .modal { padding: 33vh 0 0; padding-top: 33svh; overscroll-behavior: contain; }
-  .modal .sheet { border-radius: 24px 24px 0 0; padding: 28px 18px 40px; min-height: 100%; }
+  .modal .sheet { border-radius: 24px 24px 0 0; padding: 36px 18px 40px; min-height: 100%; }
   /* grab handle: shows the sheet slides up */
-  .modal .sheet::before { content: ""; position: absolute; top: 9px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: var(--faint); opacity: .6; }
+  .modal .sheet::before { content: ""; position: absolute; top: 13px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: var(--faint); opacity: .6; }
   .rec h1 { font-size: 30px; }
   .ex .pair { grid-template-columns: 1fr; gap: 12px; }
   .pagewrap { padding: 20px 16px 60px; }
