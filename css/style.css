@@ -549,7 +549,7 @@ img.avatar, .about .shot img { outline: 1px solid var(--img-outline); outline-of
 .ex .o.md blockquote { padding-left: 12px; box-shadow: inset 2px 0 0 var(--line2); color: var(--dim); }
 
 /* early/late-layer warning: yellow info mark; on cards it sits in the top right corner */
-:root { --warn: #ca8a04; } :root[data-theme="dark"] { --warn: #facc15; }
+:root { --warn: #eab308; } :root[data-theme="dark"] { --warn: #facc15; }
 .edge { display: inline-flex; color: var(--warn); cursor: help; vertical-align: middle; margin-left: 6px; }
 .edge svg { display: block; }
 .card { position: relative; }
