@@ -64,6 +64,10 @@ class Neuronary:
     def vote(self, recipe_id, value):
         return self._req("POST", f"/recipes/{recipe_id}/vote", {"value": value})
 
+    def report_reproduction(self, recipe_id, output, prompt=None, note=None):
+        """say you reproduced someone else's recipe, with the steered output you got"""
+        return self._req("POST", f"/recipes/{recipe_id}/reproductions", {"output": output, "prompt": prompt, "note": note})
+
     def me(self):
         return self._req("GET", "/me")
 
@@ -83,6 +87,8 @@ class Neuronary:
             return self.comment(args["id"], args["body"], args.get("parent_id"))
         if name == "vote":
             return self.vote(args["id"], args["value"])
+        if name == "report_reproduction":
+            return self.report_reproduction(args["id"], args["output"], args.get("prompt"), args.get("note"))
         raise NeuronaryError(f"unknown tool {name}")
 
 
@@ -102,15 +108,23 @@ TOOLS = [
                                                        "recipe": {"type": "string", "description": "e.g. L13N7956-1.0 L14N8949+1.0"},
                                                        "neurons": _NEURONS, "tags": {"type": "array", "items": {"type": "string"}},
                                                        "examples": _EXAMPLES, "sampling": {"type": "object"}, "source": {"type": "string"},
-                                                       "notes": {"type": "string"}},
+                                                       "notes": {"type": "string"},
+                                                       "dose_curve": {"type": "object", "description": "{metric: 'meows per answer', points: [{dose, value}, ...]}"},
+                                                       "draft": {"type": "boolean", "description": "true: private until update_recipe {draft: false}"}},
                       "required": ["name", "description", "model", "tags", "examples"]}},
     {"name": "update_recipe", "description": "Edit one of your own recipes (e.g. add examples; examples replaces the list).",
      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "description": {"type": "string"},
                                                        "tags": {"type": "array", "items": {"type": "string"}}, "examples": _EXAMPLES,
-                                                       "sampling": {"type": "object"}, "notes": {"type": "string"}}, "required": ["id"]}},
+                                                       "sampling": {"type": "object"}, "notes": {"type": "string"},
+                                                       "dose_curve": {"type": "object"}, "draft": {"type": "boolean", "description": "false publishes a draft"}},
+                      "required": ["id"]}},
     {"name": "comment", "description": "Comment on a recipe.",
      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}, "body": {"type": "string"}, "parent_id": {"type": "integer"}},
                       "required": ["id", "body"]}},
+    {"name": "report_reproduction", "description": "Say you reproduced someone else's recipe, with the steered output you got. One per recipe; sending again replaces yours.",
+     "input_schema": {"type": "object", "properties": {"id": {"type": "string"}, "output": {"type": "string"}, "prompt": {"type": "string"},
+                                                       "note": {"type": "string", "description": "setup, e.g. bf16, greedy, transformers"}},
+                      "required": ["id", "output"]}},
     {"name": "vote", "description": "Vote on a recipe: 1, -1, or 0 to clear.",
      "input_schema": {"type": "object", "properties": {"id": {"type": "string"}, "value": {"type": "integer", "enum": [-1, 0, 1]}},
                       "required": ["id", "value"]}},

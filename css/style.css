@@ -594,3 +594,36 @@ html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh
 .unitq { margin-left: 4px; color: var(--faint); text-decoration: underline dotted; cursor: help; text-transform: none; }
 .dupe { margin: 10px 0 0; padding-left: 8px; border-left: 3px solid var(--warn); font-size: 12.5px; color: var(--ink); }
 .dupe:empty { display: none; }
+
+/* reproductions, dose curve, drafts, featured row, trusted publishers */
+.repro { color: var(--ok, #16a34a); display: inline-flex; align-items: center; gap: 3px; }
+:root[data-theme="dark"] .repro { color: #4ade80; }
+.foot .cmt.repro svg { margin-right: 1px; }
+.repro-item { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.repro-item .rh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; margin-bottom: 6px; }
+.repro-item .rh svg { color: #16a34a; }
+.repro-item .rnote { font-family: var(--mono); font-size: 12px; }
+.repro-item .p { font-size: 12.5px; color: var(--dim); margin-bottom: 4px; }
+.repro-item.hiddenc { opacity: .5; }
+.linkbtn { font-size: 12px; text-decoration: underline; }
+.rform { margin-top: 12px; display: grid; gap: 8px; }
+[data-repros] > .btn { margin-top: 12px; }
+.curve { width: 100%; max-width: 260px; height: auto; display: block; }
+.curve .ax { stroke: var(--line2, var(--line)); stroke-width: 1; }
+.curve .ln { fill: none; stroke: var(--up); stroke-width: 2; }
+.curve .pt { fill: var(--up); }
+.curve text { font: 9.5px var(--mono); fill: var(--dim); }
+.curvelab { font-size: 12px; margin-top: 2px; }
+.draftbadge { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; vertical-align: 2px;
+  background: var(--raise); color: var(--dim); border: 1px dashed var(--line2, var(--line)); }
+.feathead { margin: 0; padding: 18px 28px 0; }
+.feathead h2 { font-size: 15px; }
+.grid.featured { padding-bottom: 14px; }
+.feathead + .grid { padding-top: 10px; }
+.who.trusted, a.trusted, .card .foot .who.trusted, .list .nm .who.trusted { color: #7c3aed; font-weight: 500; }
+:root[data-theme="dark"] .who.trusted, :root[data-theme="dark"] a.trusted, :root[data-theme="dark"] .card .foot .who.trusted, :root[data-theme="dark"] .list .nm .who.trusted { color: #c4b5fd; }
+.tagmerge { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0 12px; }
+.tagcloud { display: flex; flex-wrap: wrap; gap: 6px; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 0 0 12px; }
+.small { font-size: 12px; }
+@media (max-width: 640px) { .feathead { padding: 14px 14px 0; } }

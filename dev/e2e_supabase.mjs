@@ -14,6 +14,7 @@ const tag = Math.random().toString(16).slice(2, 7);
 const handle = `e2e_${tag}`;
 let rid = null; // assigned by the database on publish
 let batchIds = []; // from the batch-import step
+let draftId = null;
 const fails = [];
 const check = (name, ok, detail = "") => { console.log((ok ? "ok   " : "FAIL ") + name + (!ok && detail ? `  [${detail}]` : "")); if (!ok) fails.push(name); };
 
@@ -117,6 +118,42 @@ try {
   await page.goto(BASE + "#/r/" + rid, { waitUntil: "networkidle0" });
   await waitFor(() => !!document.querySelector(".modal .rec"), 8000);
 
+  // reproduction on someone else's recipe (the fixture)
+  await page.goto(BASE + "#/r/" + FIX, { waitUntil: "networkidle0" });
+  check("reproduce button shows", await waitFor(() => !!document.querySelector("[data-rshow]"), 10000));
+  await page.click("[data-rshow]");
+  await page.type("[data-ro]", `Arr, reproduced ${tag}`);
+  await page.type("[data-rn]", "bf16, greedy");
+  await page.click("[data-rform] button[type=submit]");
+  check("reproduction posts and counts", await waitFor((t) => document.querySelector("[data-repros]")?.textContent.includes(`Arr, reproduced ${t}`)
+    && document.querySelector("[data-rcount]")?.textContent === "1", 10000, tag));
+  check("can't reproduce twice", await page.evaluate(() => !document.querySelector("[data-rshow]")));
+
+  // draft with a dose curve: private until published
+  await page.keyboard.press("Escape");
+  await waitFor(() => !document.querySelector(".modal"), 5000);
+  await page.click("[data-submit]");
+  await waitFor(() => !!document.querySelector('[data-k="name"]'));
+  await clear('[data-k="name"]');
+  await page.type('[data-k="name"]', `E2E draft ${tag}`);
+  await clear('[data-k="description"]');
+  await page.type('[data-k="description"]', "draft test");
+  await page.type("[data-paste]", "L11N77+0.5");
+  await page.keyboard.press("Enter");
+  await page.type('[data-k="curve_metric"]', "meows per answer");
+  await page.type('[data-k="curve"]', "0:0, 0.5:13, 0.8:20, 1.0:24");
+  await page.type('[data-e="prompt"]', "Hi");
+  await page.type('[data-e="output"]', "Meow.");
+  await page.click("[data-savedraft]");
+  check("draft saves privately", await waitFor(() => /Draft: only you/.test(document.querySelector(".hidbanner")?.textContent || ""), 10000),
+    await page.evaluate(() => document.querySelector("[data-errsum]")?.textContent + " " + [...document.querySelectorAll(".f .err")].map((e) => e.textContent).join("; ") + " " + (document.querySelector(".puberr")?.textContent || "")));
+  draftId = (await page.evaluate(() => location.hash)).slice(4);
+  check("dose curve renders", await page.evaluate(() => document.querySelectorAll(".curve .pt").length === 4));
+  const pub = await fetch(`${SB}/rest/v1/recipes?id=eq.${draftId}&select=id`, { headers: { apikey: process.env.SUPABASE_ANON_KEY || "" } }).then((r) => r.json()).catch(() => null);
+  if (process.env.SUPABASE_ANON_KEY) check("draft is invisible to the public", Array.isArray(pub) && pub.length === 0, JSON.stringify(pub));
+  await page.click('[data-ract="publishdraft"]');
+  check("publishing a draft", await waitFor(() => !document.querySelector(".hidbanner") && !!document.querySelector(".modal .rec h1"), 10000));
+
   // the form keeps its inputs (no full re-render on tag/neuron changes); comma tags; quota line; batch import
   await page.keyboard.press("Escape");
   await waitFor(() => !document.querySelector(".modal"), 5000);
@@ -166,6 +203,7 @@ try {
     await fetch(`${SB}/rest/v1/recipes?id=eq.${FIX}`, { method: "DELETE", headers: h });
     if (rid) await fetch(`${SB}/rest/v1/recipes?id=eq.${rid}`, { method: "DELETE", headers: h });
     for (const b of batchIds) await fetch(`${SB}/rest/v1/recipes?id=eq.${b}`, { method: "DELETE", headers: h });
+    if (draftId) await fetch(`${SB}/rest/v1/recipes?id=eq.${draftId}`, { method: "DELETE", headers: h });
     if (userId) {
       await fetch(`${SB}/rest/v1/comments?user_id=eq.${userId}`, { method: "DELETE", headers: h });
       const r = await fetch(`${SB}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: h });

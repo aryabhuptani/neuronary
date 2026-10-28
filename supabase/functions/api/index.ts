@@ -6,6 +6,7 @@
 //     POST   /recipes                                                             publish (token)
 //     PATCH  /recipes/:id                                                         edit your own recipe (token)
 //     POST   /recipes/:id/comments   {body, parent_id?}                           comment (token)
+//     POST   /recipes/:id/reproductions {output, prompt?, note?}                  "reproduced it" with your sample (token)
 //     POST   /recipes/:id/vote       {value: -1|0|1}                              vote (token)
 //     GET    /me                                                                  who the token belongs to (token)
 //   MCP   POST /mcp   (Streamable HTTP, JSON responses; same operations as tools)
@@ -59,13 +60,15 @@ function parseNeurons(s: string): Neuron[] {
   return out;
 }
 
-const SUMMARY = "id,name,description,model,neurons,method,sampling,tags,author_handle,author_url,source,date,created_at,origin";
+const SUMMARY = "id,name,description,model,neurons,method,sampling,tags,author_handle,author_url,source,date,created_at,origin,dose_curve,featured";
 function shape(r: Record<string, any>, stats: Record<string, any> | undefined, full = false) {
   const o: Record<string, unknown> = {
     id: r.id, url: `${SITE}/#/r/${r.id}`, name: r.name, recipe: recipeStr(r.neurons), description: r.description,
     model: r.model, neurons: sorted(r.neurons), tags: r.tags, author: r.author_handle, date: r.date,
-    score: stats?.score ?? 0, comments: stats?.comments ?? 0,
+    score: stats?.score ?? 0, comments: stats?.comments ?? 0, reproductions: stats?.reproductions ?? 0,
   };
+  if (r.featured) o.featured = true;
+  if (r.dose_curve) o.dose_curve = r.dose_curve;
   if (r.method) o.method = r.method;
   if (r.sampling) o.sampling = r.sampling;
   if (r.source) o.source = r.source;
@@ -81,8 +84,8 @@ function shape(r: Record<string, any>, stats: Record<string, any> | undefined, f
 // ---------------------------------------------------------------- operations (shared by REST and MCP)
 async function search(p: { q?: string; tag?: string; model?: string; neuron?: string; author?: string; sort?: string; limit?: number }) {
   const [{ data: rows, error }, { data: stats }] = await Promise.all([
-    sb.from("recipes").select(SUMMARY).eq("hidden", false).limit(5000),
-    sb.from("recipe_stats").select("recipe_id,score,comments").limit(5000),
+    sb.from("recipes").select(SUMMARY).eq("hidden", false).eq("draft", false).limit(5000),
+    sb.from("recipe_stats").select("recipe_id,score,comments,reproductions").limit(5000),
   ]);
   if (error) throw new HttpError(500, error.message);
   const st = Object.fromEntries((stats ?? []).map((s) => [s.recipe_id, s]));
@@ -108,14 +111,14 @@ async function search(p: { q?: string; tag?: string; model?: string; neuron?: st
 }
 
 async function getRecipe(id: string) {
-  const { data: r, error } = await sb.from("recipes").select("*").eq("id", id).eq("hidden", false).maybeSingle();
+  const { data: r, error } = await sb.from("recipes").select("*").eq("id", id).eq("hidden", false).eq("draft", false).maybeSingle();
   if (error) throw new HttpError(500, error.message);
   if (!r) throw new HttpError(404, `no recipe ${id}`);
-  const { data: st } = await sb.from("recipe_stats").select("score,comments").eq("recipe_id", id).maybeSingle();
+  const { data: st } = await sb.from("recipe_stats").select("score,comments,reproductions").eq("recipe_id", id).maybeSingle();
   return shape(r, st ?? undefined, true);
 }
 
-const FIELDS = ["name", "description", "model", "neurons", "method", "sampling", "conditional", "tags", "examples", "aliases", "source", "notes"];
+const FIELDS = ["name", "description", "model", "neurons", "method", "sampling", "conditional", "tags", "examples", "aliases", "source", "notes", "dose_curve"];
 function pick(body: Record<string, any>, partial: boolean) {
   const o: Record<string, unknown> = {};
   for (const k of FIELDS) if (body[k] !== undefined) o[k] = body[k];
@@ -128,6 +131,12 @@ function pick(body: Record<string, any>, partial: boolean) {
     if (!Array.isArray(o.examples) || !(o.examples as unknown[]).length) throw new HttpError(400, "add at least one example: {prompt, output}");
   }
   if (o.neurons && (o.neurons as Neuron[]).some((n) => !Number.isFinite(n.dose))) throw new HttpError(400, "every neuron needs a dose, e.g. L14N8949+1.0");
+  // drafts: {"draft": true} on publish keeps it private to you; PATCH {"draft": false} publishes it
+  if (body.draft !== undefined) {
+    if (typeof body.draft !== "boolean") throw new HttpError(400, "draft is true or false");
+    if (partial && body.draft) throw new HttpError(400, "a recipe can't go back to draft");
+    o.draft = body.draft;
+  }
   return o;
 }
 
@@ -140,9 +149,11 @@ const friendly = (msg: string) => msg.replace(/new row for relation "recipes" vi
 
 async function publish(u: User, body: Record<string, any>) {
   const me = need(u);
-  const { count } = await sb.from("recipes").select("id", { count: "exact", head: true }).eq("user_id", me.id)
-    .gt("created_at", new Date(Date.now() - 86400e3).toISOString());
-  if ((count ?? 0) >= 20) throw new HttpError(429, "rate limit: 20 recipes a day");
+  // same per-user limit as the site (20 a day, more for trusted publishers, none for admins)
+  const { data: q } = await sb.rpc("recipe_quota_for", { uid: me.id });
+  if (q && q.limit != null && q.used >= q.limit) {
+    throw new HttpError(429, `rate limit: ${q.limit} recipes a day${q.next_at ? `; next one at ${new Date(q.next_at).toISOString()}` : ""}`);
+  }
   const row = { ...pick(body, false), user_id: me.id, author_handle: me.handle, author_url: me.url, origin: "site", hidden: false };
   const { data, error } = await sb.from("recipes").insert(row).select("id").single();
   if (error) throw new HttpError(400, friendly(error.message));
@@ -178,6 +189,23 @@ async function comment(u: User, id: string, body: { body?: string; parent_id?: n
   return { id: data.id, url: `${SITE}/#/r/${id}` };
 }
 
+// "I ran it and it worked": the reproducer's own output, counted on the recipe
+async function reproduce(u: User, id: string, body: { output?: string; prompt?: string; note?: string }) {
+  const me = need(u);
+  if (!body.output || !String(body.output).trim()) throw new HttpError(400, "output: paste what the steered model said for you");
+  const { data: r } = await sb.from("recipes").select("user_id").eq("id", id).eq("hidden", false).eq("draft", false).maybeSingle();
+  if (!r) throw new HttpError(404, `no recipe ${id}`);
+  if (r.user_id === me.id) throw new HttpError(400, "reproductions are for other people's recipes; add an example to your own instead");
+  const { count } = await sb.from("reproductions").select("id", { count: "exact", head: true }).eq("user_id", me.id)
+    .gt("created_at", new Date(Date.now() - 3600e3).toISOString());
+  if ((count ?? 0) >= 30) throw new HttpError(429, "rate limit: 30 reproductions an hour");
+  const row = { recipe_id: id, user_id: me.id, author_handle: me.handle, output: String(body.output),
+    prompt: body.prompt ? String(body.prompt) : null, note: body.note ? String(body.note) : null };
+  const { data, error } = await sb.from("reproductions").upsert(row, { onConflict: "recipe_id,user_id" }).select("id").single();
+  if (error) throw new HttpError(400, error.message);
+  return { id: data.id, url: `${SITE}/#/r/${id}` };
+}
+
 async function vote(u: User, id: string, value: number) {
   const me = need(u);
   if (![-1, 0, 1].includes(value)) throw new HttpError(400, "value must be -1, 0 or 1");
@@ -209,13 +237,18 @@ const TOOLS = [
       examples: { type: "array", items: { type: "object", properties: { prompt: { type: "string" }, output: { type: "string" }, base_output: { type: "string" } }, required: ["prompt", "output"] } },
       sampling: { type: "object", description: "recommended settings, e.g. {repetition_penalty: 1.1, temperature: 0.7}" },
       method: { type: "object", description: "omit for the default (add, all tokens)" },
-      source: { type: "string" }, notes: { type: "string" } },
+      source: { type: "string" }, notes: { type: "string" },
+      dose_curve: { type: "object", description: "optional measured dose response: {metric: 'meows per answer', points: [{dose: 0, value: 0}, {dose: 0.5, value: 13}, ...]}" },
+      draft: { type: "boolean", description: "true: save privately (only you see it); publish later with update_recipe {draft: false}" } },
       required: ["name", "description", "model", "tags", "examples"] } },
   { name: "update_recipe", description: "Edit one of your own recipes, e.g. to add examples. Only the fields you pass change; examples replaces the whole list.",
     inputSchema: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, description: { type: "string" },
-      tags: { type: "array", items: { type: "string" } }, examples: { type: "array", items: { type: "object" } }, sampling: { type: "object" }, notes: { type: "string" } }, required: ["id"] } },
+      tags: { type: "array", items: { type: "string" } }, examples: { type: "array", items: { type: "object" } }, sampling: { type: "object" }, notes: { type: "string" },
+      dose_curve: { type: "object" }, draft: { type: "boolean", description: "false publishes a draft" } }, required: ["id"] } },
   { name: "comment", description: "Comment on a recipe (optionally replying to a top-level comment).",
     inputSchema: { type: "object", properties: { id: { type: "string" }, body: { type: "string" }, parent_id: { type: "integer" } }, required: ["id", "body"] } },
+  { name: "report_reproduction", description: "Say you reproduced someone else's recipe, with the steered output you got (and the prompt). Shown on the recipe and counted. One per recipe per user; sending again replaces yours.",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, output: { type: "string" }, prompt: { type: "string" }, note: { type: "string", description: "setup, e.g. bf16, greedy, transformers" } }, required: ["id", "output"] } },
   { name: "vote", description: "Vote on a recipe: 1 up, -1 down, 0 to clear.",
     inputSchema: { type: "object", properties: { id: { type: "string" }, value: { type: "integer", enum: [-1, 0, 1] } }, required: ["id", "value"] } },
 ];
@@ -228,6 +261,7 @@ async function callTool(u: User, name: string, a: Record<string, any>) {
     case "update_recipe": { const { id, ...rest } = a; return edit(u, String(id), rest); }
     case "comment": return comment(u, String(a.id), a);
     case "vote": return vote(u, String(a.id), Number(a.value));
+    case "report_reproduction": return reproduce(u, String(a.id), a);
     default: throw new HttpError(404, `unknown tool ${name}`);
   }
 }
@@ -283,6 +317,7 @@ Deno.serve(async (req) => {
       else if (req.method === "PATCH") result = await edit(u, m[1], body);
       else throw new HttpError(405, "method not allowed");
     } else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/comments$/)) && req.method === "POST") result = await comment(u, m[1], body);
+    else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/reproductions$/)) && req.method === "POST") result = await reproduce(u, m[1], body);
     else if ((m = path.match(/^\/recipes\/([a-z0-9-]+)\/vote$/)) && req.method === "POST") result = await vote(u, m[1], Number(body.value));
     else throw new HttpError(404, "not found; see https://neuronary.org/#/about");
     return Response.json(result, { headers: CORS });

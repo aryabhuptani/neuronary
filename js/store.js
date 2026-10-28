@@ -143,7 +143,7 @@ class LocalStore {
 // ---------------------------------------------------------------- supabase
 // The database holds every recipe (repo ones are synced in by scripts/sync_repo.py). Sign-in is X (OAuth) or an
 // anonymous session plus a handle; anonymous users can link X later and keep everything.
-const SUMMARY = "id,name,description,model,neurons,method,sampling,tags,aliases,author_handle,author_url,source,date,created_at,user_id,origin,hidden";
+const SUMMARY = "id,name,description,model,neurons,method,sampling,tags,aliases,author_handle,author_url,source,date,created_at,user_id,origin,hidden,dose_curve,featured,draft";
 
 class SupabaseStore {
   mode = "supabase";
@@ -252,15 +252,18 @@ class SupabaseStore {
 
   async list() {
     const u = this.user();
-    const [{ data: rows, error: e1 }, { data: stats, error: e2 }, mine] = await Promise.all([
+    const [{ data: rows, error: e1 }, { data: stats, error: e2 }, mine, { data: tr }] = await Promise.all([
       this.sb.from("recipes").select(SUMMARY).limit(5000),
-      this.sb.from("recipe_stats").select("recipe_id,score,comments").limit(5000),
+      this.sb.from("recipe_stats").select("recipe_id,score,comments,reproductions").limit(5000),
       u ? this.sb.from("votes").select("recipe_id,value").eq("user_id", u.id) : Promise.resolve({ data: [] }),
+      this.sb.from("profiles").select("handle").eq("trusted", true),
     ]);
     if (e1 || e2) throw e1 || e2;
+    this.trusted = new Set((tr || []).map((p) => p.handle));
     const st = Object.fromEntries((stats || []).map((s) => [s.recipe_id, s]));
     const mv = Object.fromEntries((mine.data || []).map((v) => [v.recipe_id, v.value]));
-    return (rows || []).map((r) => ({ ...this._row(r), score: st[r.id]?.score ?? 0, comments: st[r.id]?.comments ?? 0, myVote: mv[r.id] || 0 }));
+    return (rows || []).map((r) => ({ ...this._row(r), score: st[r.id]?.score ?? 0, comments: st[r.id]?.comments ?? 0,
+      reproductions: st[r.id]?.reproductions ?? 0, myVote: mv[r.id] || 0 }));
   }
 
   async get(id) {
@@ -269,10 +272,10 @@ class SupabaseStore {
     if (!data) return null;
     const u = this.user();
     const [{ data: st }, mine] = await Promise.all([
-      this.sb.from("recipe_stats").select("score,comments").eq("recipe_id", id).maybeSingle(),
+      this.sb.from("recipe_stats").select("score,comments,reproductions").eq("recipe_id", id).maybeSingle(),
       u ? this.sb.from("votes").select("value").eq("recipe_id", id).eq("user_id", u.id).maybeSingle() : Promise.resolve({ data: null }),
     ]);
-    return { ...this._row(data), score: st?.score ?? 0, comments: st?.comments ?? 0, myVote: mine.data?.value || 0 };
+    return { ...this._row(data), score: st?.score ?? 0, comments: st?.comments ?? 0, reproductions: st?.reproductions ?? 0, myVote: mine.data?.value || 0 };
   }
 
   _need() {
@@ -330,14 +333,14 @@ class SupabaseStore {
       name: recipe.name, description: recipe.description, model: recipe.model, neurons: recipe.neurons,
       method: recipe.method || null, sampling: recipe.sampling || null, conditional: recipe.conditional || null,
       tags: recipe.tags, examples: recipe.examples, aliases: recipe.aliases || [], source: recipe.source || null,
-      notes: recipe.notes || null,
+      notes: recipe.notes || null, dose_curve: recipe.dose_curve || null,
     };
   }
 
-  async submit(recipe) {
+  async submit(recipe, { draft = false } = {}) {
     this._need();
     // the database assigns the id
-    const { data, error } = await this.sb.from("recipes").insert({ ...this._fields(recipe), author_handle: "" }).select("id").single();
+    const { data, error } = await this.sb.from("recipes").insert({ ...this._fields(recipe), author_handle: "", draft }).select("id").single();
     if (error) throw new Error(error.message);
     return data.id;
   }
@@ -362,6 +365,51 @@ class SupabaseStore {
     return data;
   }
 
+  async publishDraft(id) {
+    const { error } = await this.sb.from("recipes").update({ draft: false }).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  async setFeatured(id, featured) {
+    const { error } = await this.sb.from("recipes").update({ featured }).eq("id", id);
+    if (error) throw new Error(error.message);
+  }
+
+  // reproductions: other people's runs of a recipe, with their own sample
+  async reproductions(id) {
+    const { data, error } = await this.sb.from("reproductions").select("id,author_handle,prompt,output,note,created_at,user_id,hidden")
+      .eq("recipe_id", id).order("created_at");
+    if (error) throw error;
+    return data || [];
+  }
+
+  async reproduce(id, { prompt, output, note }) {
+    this._need();
+    const { error } = await this.sb.from("reproductions").insert({ recipe_id: id, prompt: prompt || null, output, note: note || null, author_handle: "" });
+    if (error) throw new Error(/duplicate key/.test(error.message) ? "you already reported a reproduction of this recipe" : error.message);
+  }
+
+  async deleteReproduction(rid) {
+    const { error } = await this.sb.from("reproductions").delete().eq("id", rid);
+    if (error) throw error;
+  }
+
+  async hideReproduction(rid, hidden = true) {
+    const { error } = await this.sb.from("reproductions").update({ hidden }).eq("id", rid);
+    if (error) throw error;
+  }
+
+  async mergeTag(src, dst) {
+    const { data, error } = await this.sb.rpc("merge_tag", { src, dst });
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async tagAliases() {
+    const { data } = await this.sb.from("tag_aliases").select("alias,tag").order("tag");
+    return data || [];
+  }
+
   async setHidden(id, hidden) {
     const { error } = await this.sb.from("recipes").update({ hidden }).eq("id", id);
     if (error) throw error;
@@ -381,11 +429,14 @@ class SupabaseStore {
     if (e1 || e2) throw e1 || e2;
     const cids = [...new Set([...log.filter((l) => l.kind === "comment").map((l) => +l.target_id), ...reports.filter((r) => r.comment_id).map((r) => r.comment_id)])];
     const rids = [...new Set([...log.filter((l) => l.kind === "recipe").map((l) => l.target_id), ...reports.filter((r) => r.recipe_id).map((r) => r.recipe_id)])];
-    const [{ data: cs }, { data: rs }] = await Promise.all([
+    const pids = [...new Set(log.filter((l) => l.kind === "reproduction").map((l) => +l.target_id))];
+    const [{ data: cs }, { data: rs }, { data: ps }] = await Promise.all([
       cids.length ? this.sb.from("comments").select("id,recipe_id,author_handle,body,hidden").in("id", cids) : Promise.resolve({ data: [] }),
       rids.length ? this.sb.from("recipes").select("id,name,author_handle,description,hidden").in("id", rids) : Promise.resolve({ data: [] }),
+      pids.length ? this.sb.from("reproductions").select("id,recipe_id,author_handle,output,note,hidden").in("id", pids) : Promise.resolve({ data: [] }),
     ]);
-    return { log, reports, comments: Object.fromEntries((cs || []).map((c) => [String(c.id), c])), recipes: Object.fromEntries((rs || []).map((r) => [r.id, r])) };
+    return { log, reports, comments: Object.fromEntries((cs || []).map((c) => [String(c.id), c])), recipes: Object.fromEntries((rs || []).map((r) => [r.id, r])),
+      reproductions: Object.fromEntries((ps || []).map((x) => [String(x.id), x])) };
   }
 
   async clearReport(id) {

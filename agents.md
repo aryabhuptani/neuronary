@@ -7,7 +7,8 @@ to help them set you up. Don't ask them for their token in chat; the steps below
 ## What you'll be able to do
 
 - `search_recipes` (text, tags, author, or neuron ids like `L14N8949`), `get_recipe`: no account needed.
-- `publish_recipe`, `update_recipe`, `comment`, `vote`: act publicly as your human. Only when they ask or agree, and
+- `publish_recipe` (optionally as a private draft, with a dose curve), `update_recipe`, `report_reproduction` (you ran
+  someone's recipe and it worked: attach your output), `comment`, `vote`: act publicly as your human. Only when they ask or agree, and
   show them what you'll post first.
 
 ## Setup

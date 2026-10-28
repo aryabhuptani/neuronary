@@ -179,6 +179,36 @@ try:
     s, d = call("GET", "/rest/v1/reports?select=*", tb)
     check("reports are admin-only", s == 200 and d == [], d)
 
+    # non-admins: no featuring, no trusting yourself, no tag merges; drafts stay private
+    s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{ra}", ta, {"featured": True}, prefer="return=representation")
+    check("non-admin can't feature", not (s == 200 and d and d[0].get("featured") is True), d)
+    s, d = call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", ta, {"trusted": True}, prefer="return=representation")
+    check("can't make yourself trusted", not (s == 200 and d and d[0].get("trusted") is True), d)
+    s, d = call("POST", "/rest/v1/rpc/merge_tag", ta, {"src": "test", "dst": "pwned"})
+    check("non-admin can't merge tags", s >= 400, d)
+    s, d = call("POST", "/rest/v1/recipes", tb, recipe(f"rls-draft-{tag}", draft=True), prefer="return=representation")
+    did = d[0]["id"] if s == 201 else None
+    if did: made.append(did)
+    check("draft saves", s == 201 and d[0].get("draft") is True, d)
+    s, d = call("GET", f"/rest/v1/recipes?id=eq.{did}&select=id")
+    check("drafts are invisible to the public", s == 200 and d == [], d)
+    s, d = call("GET", f"/rest/v1/recipes?id=eq.{did}&select=id", ta)
+    check("drafts are invisible to other users", s == 200 and d == [], d)
+    s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{did}", tb, {"draft": False}, prefer="return=representation")
+    check("owner publishes a draft", s == 200 and d and d[0]["draft"] is False, d)
+    s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{did}", tb, {"draft": True}, prefer="return=representation")
+    check("published can't go back to draft", s >= 400, d)
+    # reproductions: not on your own recipe, one per user, spoof-proof
+    s, d = call("POST", "/rest/v1/reproductions", ta, {"recipe_id": ra, "output": "x", "author_handle": "x"})
+    check("can't reproduce your own recipe", s >= 400, d)
+    s, d = call("POST", "/rest/v1/reproductions", tb, {"recipe_id": ra, "output": "it worked", "author_handle": "_lyraaaa_", "user_id": ua},
+                prefer="return=representation")
+    check("reproduce someone else's", s == 201 and d[0]["author_handle"] == hb and d[0]["user_id"] == ub, d)
+    s, d = call("POST", "/rest/v1/reproductions", tb, {"recipe_id": ra, "output": "again", "author_handle": ""})
+    check("one reproduction per user per recipe", s >= 400, d)
+    s, d = call("GET", f"/rest/v1/recipe_stats?recipe_id=eq.{ra}&select=reproductions")
+    check("reproductions counted", s == 200 and d and d[0]["reproductions"] == 1, d)
+
     # admin powers: promote A via service role, then A hides B's comment
     call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", body={"is_admin": True}, key=SERVICE, token=SERVICE)
     s, d = call("PATCH", f"/rest/v1/comments?id=eq.{cid}", ta, {"hidden": True}, prefer="return=representation")
@@ -187,6 +217,17 @@ try:
     check("hidden comments are hidden from the public", s == 200 and all(c["id"] != cid for c in d), d)
     s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{FIX}", ta, {"notes": None}, prefer="return=representation")
     check("admin can edit repo recipes", s == 200 and d, d)
+    s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{ra}", ta, {"featured": True}, prefer="return=representation")
+    check("admin can feature", s == 200 and d and d[0]["featured"] is True, d)
+    ta1, ta2 = f"rlsa{tag}".lower()[:30], f"rlsb{tag}".lower()[:30]
+    call("PATCH", f"/rest/v1/recipes?id=eq.{ra}", ta, {"tags": [ta1]})
+    s, d = call("POST", "/rest/v1/rpc/merge_tag", ta, {"src": ta1, "dst": ta2})
+    s2, d2 = call("GET", f"/rest/v1/recipes?id=eq.{ra}&select=tags", ta)
+    check("admin merges tags", s == 200 and d2 and d2[0]["tags"] == [ta2], (d, d2))
+    s, d = call("POST", "/rest/v1/recipes", tb, recipe(f"rls-alias-{tag}", tags=[ta1]), prefer="return=representation")
+    if s == 201: made.append(d[0]["id"])
+    check("merged tag maps on new posts", s == 201 and d[0]["tags"] == [ta2], d)
+    call("DELETE", f"/rest/v1/tag_aliases?alias=eq.{ta1}", key=SERVICE, token=SERVICE)
     s, d = call("DELETE", f"/rest/v1/recipes?id=eq.{ra}", ta, prefer="return=representation")
     check("owner/admin can delete", s == 200 and d, d)
     if s == 200 and d:

@@ -9,6 +9,7 @@ const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 
 function describe(kind: string, row: Record<string, unknown>): string {
   if (kind === "comment") return `New comment:\n\n${row.body}`;
+  if (kind === "reproduction") return `New reproduction report (someone's own run of a recipe):\n\nprompt: ${row.prompt ?? ""}\noutput: ${row.output}\nnote: ${row.note ?? ""}`;
   const ex = ((row.examples as Array<Record<string, string>>) ?? [])
     .map((e, i) => `example ${i + 1} prompt: ${e.prompt}\nexample ${i + 1} output: ${e.output}`).join("\n");
   return `New recipe:\n\nname: ${row.name}\ndescription: ${row.description}\ntags: ${(row.tags as string[] ?? []).join(", ")}\n` +
@@ -40,7 +41,7 @@ Deno.serve(async (req) => {
     return new Response("forbidden", { status: 403 });
   }
   const { kind, id } = await req.json();
-  const table = kind === "comment" ? "comments" : "recipes";
+  const table = kind === "comment" ? "comments" : kind === "reproduction" ? "reproductions" : "recipes";
   const { data: row, error } = await sb.from(table).select("*").eq("id", id).maybeSingle();
   if (error || !row) return new Response("gone", { status: 200 });
 

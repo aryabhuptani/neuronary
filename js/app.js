@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027181541";
-import { createStore } from "./store.js?v=20261027181541";
+import { ABOUT_HTML } from "./about.js?v=20261027183201";
+import { createStore } from "./store.js?v=20261027183201";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027181541";
+} from "./format.js?v=20261027183201";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -15,6 +15,8 @@ let RECIPES = [];
 
 // ------------------------------------------------------------------ icons
 const I = {
+  repro: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.5 5.5 11.5 10.5 5M7.5 11.5 8.5 12.5 13.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  star: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
   dice: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="5.5" r="1.1" fill="currentColor"/><circle cx="10.5" cy="10.5" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/></svg>',
   fork: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="12.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 5.1v1.4c0 1.4 1 2.2 2.3 2.4L8 9.1l1.2-.2c1.3-.2 2.3-1 2.3-2.4V5.1M8 9.1v1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
   up: '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 8.5L6 3l4.5 5.5z" fill="currentColor"/></svg>',
@@ -111,15 +113,17 @@ function votesHtml(r, cls = "") {
 const tagHref = (t) => browseHref({ tags: [t] });
 const tagsHtml = (tags, on = []) => tags.map((t) => `<a class="tag ${on.includes(t) ? "on" : ""}" href="${tagHref(t)}">${esc(t)}</a>`).join("");
 const shortModel = (m) => m.split("/").pop();
+const isTrusted = (h) => !!(store.trusted && store.trusted.has(h));
+const whoHtml = (h) => `<span class="who${isTrusted(h) ? " trusted" : ""}"${isTrusted(h) ? ' title="trusted publisher"' : ""}>@${esc(h)}</span>`;
 
 function cardHtml(r, on) {
   return `<a class="card" href="#/r/${esc(r.id)}" data-open="${esc(r.id)}">
     ${edgeMark(r.neurons, r.model)}
-    <div class="name">${esc(r.name)}</div>
+    <div class="name">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}</div>
     <div class="rid">${recipeHtml(r.neurons)}</div>
     <div class="desc">${esc(r.description)}</div>
     <div class="tags">${r.tags.slice(0, 5).map((t) => `<span class="tag ${on.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div>
-    <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span><span class="who">@${esc(r.author.handle)}</span></div>
+    <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span>${r.reproductions ? `<span class="cmt repro" title="reproduced by ${r.reproductions} ${r.reproductions === 1 ? "person" : "people"}">${I.repro}${r.reproductions}</span>` : ""}${whoHtml(r.author.handle)}</div>
   </a>`;
 }
 
@@ -403,13 +407,20 @@ async function renderMod() {
   document.body.className = "page";
   main.innerHTML = `<div class="pagewrap"><div class="dim">…</div></div>`;
   let q;
-  try { q = await store.modQueue(); } catch (e) { main.innerHTML = `<div class="pagewrap err">${esc(e.message)}</div>`; return; }
+  let aliases = [];
+  try { [q, aliases] = await Promise.all([store.modQueue(), store.tagAliases()]); } catch (e) { main.innerHTML = `<div class="pagewrap err">${esc(e.message)}</div>`; return; }
   const target = (kind, id) => {
     if (kind === "comment") {
       const c = q.comments[String(id)];
       if (!c) return `<span class="faint">comment ${esc(id)} (deleted)</span>`;
       return `<div class="mtext">${esc(c.body)}</div><div class="mmeta">@${esc(c.author_handle)} on <a href="#/r/${esc(c.recipe_id)}">${esc(c.recipe_id)}</a>
         <button class="btn sbtn" data-mhide="comment:${c.id}:${c.hidden ? 0 : 1}">${c.hidden ? I.eyeoff + "<span>Unhide</span>" : I.eyeoff + "<span>Hide</span>"}</button>${c.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
+    }
+    if (kind === "reproduction") {
+      const x = q.reproductions[String(id)];
+      if (!x) return `<span class="faint">reproduction ${esc(id)} (deleted)</span>`;
+      return `<div class="mtext">${esc(x.output)}</div><div class="mmeta">reproduction by @${esc(x.author_handle)} on <a href="#/r/${esc(x.recipe_id)}">${esc(x.recipe_id)}</a>
+        <button class="btn sbtn" data-mhide="reproduction:${x.id}:${x.hidden ? 0 : 1}">${I.eyeoff}<span>${x.hidden ? "Unhide" : "Hide"}</span></button>${x.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
     }
     const r = q.recipes[id];
     if (!r) return `<span class="faint">recipe ${esc(id)} (deleted)</span>`;
@@ -422,7 +433,7 @@ async function renderMod() {
       <button class="btn sbtn" data-mapprove="${l.id}:${l.kind}:${esc(l.target_id)}">${I.check}<span>Approve</span></button>
       <button class="btn sbtn quiet" data-mkeep="${l.id}">Keep hidden</button></div>${target(l.kind, l.target_id)}</li>`).join("");
   const reports = q.reports.map((rp) => `<li><div class="mhead"><span class="tag">report</span> ${esc(rp.reason)} <span class="faint">${esc(ago(rp.created_at))}</span>
-      <button class="btn sbtn quiet" data-mclear="${rp.id}">dismiss</button></div>${rp.comment_id ? target("comment", rp.comment_id) : target("recipe", rp.recipe_id)}</li>`).join("");
+      <button class="btn sbtn quiet" data-mclear="${rp.id}">dismiss</button></div>${rp.comment_id ? target("comment", rp.comment_id) : rp.reproduction_id ? target("reproduction", rp.reproduction_id) : target("recipe", rp.recipe_id)}</li>`).join("");
   const log = q.log.map((l) => `<li><div class="mhead"><span class="tag ${l.verdict === "remove" ? "danger" : ""}">${l.verdict === "remove" ? "removed" : "allowed"}</span>
       ${esc(l.reason || l.error || "")} <span class="faint mono">${esc((l.model || "").split("/").pop())} · ${esc(ago(l.created_at))}</span></div>${target(l.kind, l.target_id)}</li>`).join("");
   main.innerHTML = `<div class="pagewrap mod">
@@ -431,13 +442,29 @@ async function renderMod() {
     ${review ? `<ul class="mlist">${review}</ul>` : `<div class="faint">—</div>`}
     <h2>Reports <span class="faint mono">${q.reports.length}</span></h2>
     ${reports ? `<ul class="mlist">${reports}</ul>` : `<div class="faint">—</div>`}
+    <h2>Tags</h2>
+    <p class="dim">Merging folds a tag into another on every recipe and remembers it, so future posts with the old tag get the new one.</p>
+    <form class="tagmerge" data-tagmerge><input data-tfrom placeholder="from, e.g. mashup" list="alltags" spellcheck="false"> <span class="dim">into</span>
+      <input data-tto placeholder="into, e.g. combination" list="alltags" spellcheck="false"> <button class="btn sbtn" type="submit">Merge</button>
+      <datalist id="alltags">${Object.keys(tagCounts()).sort().map((t) => `<option value="${esc(t)}">`).join("")}</datalist></form>
+    <div class="tagcloud">${Object.entries(tagCounts()).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<span class="tag">${esc(t)} <span class="faint">${n}</span></span>`).join(" ")}</div>
+    ${aliases.length ? `<div class="dim small" style="margin-top:10px">merged: ${aliases.map((a) => `${esc(a.alias)} → ${esc(a.tag)}`).join(" · ")}</div>` : ""}
     <h2>jev's decisions <span class="faint mono">${q.log.length}</span></h2>
     ${log ? `<ul class="mlist">${log}</ul>` : `<div class="faint">—</div>`}
   </div>`;
+  $("[data-tagmerge]", main).onsubmit = async (e) => {
+    e.preventDefault();
+    const src = $("[data-tfrom]", main).value.trim(), dst = $("[data-tto]", main).value.trim();
+    if (!src || !dst) return;
+    if (!confirm(`Merge “${src}” into “${dst}” on every recipe?`)) return;
+    try { const n = await store.mergeTag(src, dst); RECIPES = await store.list(); flashOk(`Merged: ${n} recipe${n === 1 ? "" : "s"} updated.`); renderMod(); } catch (err) { flashError(err); }
+  };
   $$("[data-mhide]", main).forEach((b) => (b.onclick = async () => {
     const [kind, id, h] = b.dataset.mhide.split(":");
     try {
-      if (kind === "comment") await store.hideComment(+id, h === "1"); else await store.setHidden(id, h === "1");
+      if (kind === "comment") await store.hideComment(+id, h === "1");
+      else if (kind === "reproduction") await store.hideReproduction(+id, h === "1");
+      else await store.setHidden(id, h === "1");
       RECIPES = await store.list();
       renderMod();
     } catch (e) { flashError(e); }
@@ -445,7 +472,9 @@ async function renderMod() {
   $$("[data-mapprove]", main).forEach((b) => (b.onclick = async () => {
     const [logId, kind, id] = b.dataset.mapprove.split(":");
     try {
-      if (kind === "comment") await store.hideComment(+id, false); else await store.setHidden(id, false);
+      if (kind === "comment") await store.hideComment(+id, false);
+      else if (kind === "reproduction") await store.hideReproduction(+id, false);
+      else await store.setHidden(id, false);
       await store.resolveReview(+logId);
       RECIPES = await store.list();
       renderMod();
@@ -604,11 +633,18 @@ function renderBrowse(params) {
 
   let body;
   if (!rs.length) body = `<div class="empty">No recipes match.</div>`;
-  else if (view === "cards") body = `<div class="grid">${rs.map((r) => cardHtml(r, tags)).join("")}</div>`;
+  else if (view === "cards") {
+    // featured row: only on the plain home view (hot, no search or filters)
+    const plain = sort === "hot" && !p.q && !["model", "tags", "n", "sign", "layers", "author"].some((k) => p[k]);
+    const feat = plain ? rs.filter((r) => r.featured) : [];
+    const rest = feat.length ? rs.filter((r) => !r.featured) : rs;
+    body = (feat.length ? `<div class="sechead feathead"><h2>Featured</h2></div><div class="grid featured">${feat.map((r) => cardHtml(r, tags)).join("")}</div>
+      <div class="sechead feathead"><h2>Everything</h2></div>` : "") + `<div class="grid">${rest.map((r) => cardHtml(r, tags)).join("")}</div>`;
+  }
   else body = `<div class="list"><table><thead><tr><th></th><th>name</th><th>neurons</th><th class="hide-s">tags</th><th class="hide-s">model</th><th></th></tr></thead><tbody>
     ${rs.map((r) => `<tr class="row" data-open="${esc(r.id)}" data-href="#/r/${esc(r.id)}">
       <td class="vcol">${votesHtml(r)}</td>
-      <td><div class="nm">${esc(r.name)}<span class="who">@${esc(r.author.handle)}</span></div><div class="ds">${esc(r.description)}</div></td>
+      <td><div class="nm">${r.draft ? `<span class="draftbadge">draft</span>` : ""}${esc(r.name)}${whoHtml(r.author.handle)}</div><div class="ds">${esc(r.description)}</div></td>
       <td><span class="rid">${recipeHtml(r.neurons)}</span>${edgeMark(r.neurons, r.model)}</td>
       <td class="hide-s"><div class="tags">${r.tags.slice(0, 4).map((t) => `<span class="tag ${tags.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div></td>
       <td class="hide-s model">${esc(shortModel(r.model))}</td>
@@ -710,10 +746,11 @@ function recipeHtmlBlock(r, { modal }) {
     <div class="rhead">
       ${cat ? `<div class="crumb"><a href="#/c/${esc(cat.tag)}">${esc(cat.name)}</a> &nbsp;›&nbsp; ${esc(r.name)}</div>` : ""}
       ${r.hidden ? `<div class="hidbanner">${store.user() && store.user().admin ? "Hidden: only you and admins can see this recipe." : "Waiting for review: only you can see this recipe until a moderator approves it."}${store.user() && store.user().admin ? ` <button class="btn sbtn" data-ract="hide">${I.eyeoff}<span>Unhide</span></button>` : ""}</div>` : ""}
+      ${r.draft ? `<div class="hidbanner">Draft: only you can see this. <button class="btn sbtn primary" data-ract="publishdraft">Publish</button></div>` : ""}
       <h1>${esc(r.name)}</h1>
       <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}${edgeMark(r.neurons, r.model)}</div>
       ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${ingredients.map((x) => `<a href="#/r/${esc(x.id)}">${esc(x.name)}</a>`).join(` <span class="dim">+</span> `)}</div>` : ""}
-      <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener">@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}">@${esc(r.author.handle)}</a>`}
+      <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>`}${r.reproductions ? ` &nbsp;·&nbsp; <span class="repro">${I.repro} reproduced by ${r.reproductions}</span>` : ""}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
         ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}
 </div>
@@ -726,6 +763,10 @@ function recipeHtmlBlock(r, { modal }) {
         <div class="sechead"><h2>Examples</h2><span class="faint mono">${(r.examples || []).length}</span>
           ${hasBase ? `<span class="seg" data-exmode><button class="on" data-m="s">steered</button><button data-m="b">vs base</button></span>` : ""}</div>
         ${examples || `<div class="faint">—</div>`}
+      </section>
+      <section>
+        <div class="sechead"><h2>Reproduced</h2><span class="faint mono" data-rcount>${r.reproductions || 0}</span></div>
+        <div data-repros><div class="dim">…</div></div>
       </section>
       <section>
         <div class="sechead"><h2>Comments</h2><span class="faint mono" data-ccount>${r.comments}</span></div>
@@ -744,6 +785,7 @@ function recipeHtmlBlock(r, { modal }) {
         ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
           ${u > 0 ? `<a class="in" href="#/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
       </div>
+      ${r.dose_curve ? `<div class="blk"><div class="lab">dose curve</div>${curveSvg(r.dose_curve)}</div>` : ""}
       <div class="blk"><div class="lab">method <span class="unitq" data-tip="${esc(m.op === "add" && m.normalization !== "raw"
         ? "Dose units: at the input of the layer's mlp.down_proj, every token gets act[n] += dose × median(‖residual leaving the layer‖) / ‖W_down[:, n]‖. So +1.0 adds one median residual norm along the neuron's output direction. Single neurons are usually coherent around 0.5–1.0, and doses add across neurons."
         : m.op === "mul" ? "Multiply: the neuron's activation at mlp.down_proj's input is scaled by the dose." : "Raw units: the dose is added directly to the activation at mlp.down_proj's input.")}">units?</span></div><div class="mono">${esc(methodTxt)}</div></div>
@@ -778,6 +820,7 @@ function recipeActions(r) {
   }
   const u = store.user();
   if (u && u.admin && store.mode === "supabase") out.push(b("hide", I.eyeoff, r.hidden ? "Unhide" : "Hide"));
+  if (u && u.admin && store.mode === "supabase" && !r.draft) out.push(b("feature", I.star, r.featured ? "Unfeature" : "Feature"));
   if (store.canEdit && store.canEdit(r) && r.origin !== "repo") out.push(b("delete", I.trash, "Delete", "danger")); // repo recipes would sync back
   if (store.mode === "supabase" && !(store.canEdit && store.canEdit(r))) out.push(b("report", I.flag, "Report", "quiet"));
   return out.length ? `<div class="ractions">${out.join("")}</div>` : "";
@@ -790,6 +833,19 @@ function wireRecipe(root, r) {
       if (a === "edit") {
         if (overlay.innerHTML) { closeModal(true); }
         return openEditor(r.id);
+      }
+      if (a === "publishdraft") {
+        await store.publishDraft(r.id);
+        RECIPES = await store.list();
+        flashOk(`Published “${r.name}”.`);
+        return route();
+      }
+      if (a === "feature") {
+        await store.setFeatured(r.id, !r.featured);
+        r.featured = !r.featured;
+        RECIPES = await store.list();
+        b.querySelector("span").textContent = r.featured ? "Unfeature" : "Feature";
+        return;
       }
       if (a === "remix") {
         if (store.mode === "supabase" && !signedIn()) return signInPrompt("remix this recipe", () => remix(r));
@@ -836,6 +892,7 @@ function wireRecipe(root, r) {
     if (a === "studio") { download(`${r.id}.neuron-studio.json`, JSON.stringify(studioFile(r), null, 2)); flashBtn(b); }
   }));
   renderComments(root, r);
+  renderRepros(root, r);
 }
 
 function flashBtn(b) {
@@ -917,6 +974,77 @@ function closeModal(silent) {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && overlay.innerHTML) closeModalNav(); });
 
 // comments
+// dose curve: measured effect at a few doses, as a small line chart
+function curveSvg(c) {
+  const pts = [...c.points].sort((a, b) => a.dose - b.dose);
+  const W = 240, H = 120, L = 30, R = 8, T = 10, B = 24;
+  const xs = pts.map((p) => p.dose), ys = pts.map((p) => p.value);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(0, ...ys), y1 = Math.max(...ys) || 1;
+  const X = (v) => L + ((v - x0) / (x1 - x0 || 1)) * (W - L - R), Y = (v) => H - B - ((v - y0) / (y1 - y0 || 1)) * (H - T - B);
+  const fmt = (v) => String(+v.toFixed(3));
+  return `<svg class="curve" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(c.metric)} by dose: ${pts.map((p) => `${fmt(p.dose)} gives ${fmt(p.value)}`).join(", ")}">
+    <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" class="ax"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" class="ax"/>
+    <polyline points="${pts.map((p) => `${X(p.dose)},${Y(p.value)}`).join(" ")}" class="ln"/>
+    ${pts.map((p) => `<circle cx="${X(p.dose)}" cy="${Y(p.value)}" r="3" class="pt"><title>dose ${fmt(p.dose)}: ${fmt(p.value)}</title></circle>`).join("")}
+    ${pts.map((p) => `<text x="${X(p.dose)}" y="${H - B + 14}" text-anchor="middle">${fmt(p.dose)}</text>`).join("")}
+    <text x="${L - 5}" y="${Y(y1) + 4}" text-anchor="end">${fmt(y1)}</text><text x="${L - 5}" y="${Y(y0) + 4}" text-anchor="end">${fmt(y0)}</text>
+  </svg><div class="dim curvelab">${esc(c.metric)} by dose</div>`;
+}
+
+// "Reproduced": other people's own runs of the recipe, each with a sample. Stronger evidence than votes.
+async function renderRepros(root, r) {
+  const box = $("[data-repros]", root);
+  if (!box || store.mode !== "supabase") { if (box) box.closest("section").hidden = true; return; }
+  let list = [];
+  try { list = await store.reproductions(r.id); } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; return; }
+  const u = store.user();
+  const mine = u && list.find((x) => x.user_id === u.id);
+  const own = u && r.user_id === u.id;
+  const items = list.map((x) => `<div class="repro-item${x.hidden ? " hiddenc" : ""}">
+      <div class="rh">${I.repro}${whoHtml(x.author_handle)}<span class="faint">${esc(ago(x.created_at))}</span>${x.note ? `<span class="dim rnote">${esc(x.note)}</span>` : ""}
+        ${u && (x.user_id === u.id || u.admin) ? `<button class="dim linkbtn" data-rdel="${x.id}">delete</button>` : ""}
+        ${u && u.admin ? `<button class="dim linkbtn" data-rhide="${x.id}:${x.hidden ? 0 : 1}">${x.hidden ? "unhide" : "hide"}</button>` : ""}</div>
+      ${x.prompt ? `<div class="p">${esc(x.prompt)}</div>` : ""}<div class="o md">${md(x.output)}</div></div>`).join("");
+  const canAdd = !own && !mine;
+  box.innerHTML = `${items || `<div class="faint">Nobody has reported reproducing this yet.</div>`}
+    ${canAdd ? `<button class="btn sbtn" data-rshow>${I.repro}<span>I reproduced this</span></button>
+    <form class="rform" data-rform hidden>
+      <label class="f"><span>prompt</span><input data-rp value="${esc((r.examples && r.examples[0] && r.examples[0].prompt) || "")}"></label>
+      <label class="f"><span>what the steered model said for you</span><textarea data-ro required></textarea></label>
+      <label class="f"><span>setup <span class="faint">optional: precision, sampling, library</span></span><input data-rn placeholder="bf16, greedy, transformers"></label>
+      <div class="pub"><button class="btn primary" type="submit">Post</button><button class="btn" type="button" data-rcancel>Cancel</button></div>
+    </form>` : own ? `<div class="faint small">Others can mark this reproduced with their own sample.</div>` : ""}`;
+  const show = $("[data-rshow]", box), form = $("[data-rform]", box);
+  if (show) show.onclick = () => {
+    if (!signedIn()) return signInPrompt("report a reproduction", () => renderRepros(root, r));
+    show.hidden = true; form.hidden = false; $("[data-ro]", form).focus();
+  };
+  if (form) {
+    $("[data-rcancel]", form).onclick = () => { form.hidden = true; show.hidden = false; };
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const output = $("[data-ro]", form).value;
+      if (!output.trim()) return;
+      const btn = $("button[type=submit]", form); btn.disabled = true;
+      try {
+        await store.reproduce(r.id, { prompt: $("[data-rp]", form).value, output, note: $("[data-rn]", form).value.trim() });
+        r.reproductions = (r.reproductions || 0) + 1;
+        const rc = $("[data-rcount]", root); if (rc) rc.textContent = r.reproductions;
+        const i = RECIPES.findIndex((x) => x.id === r.id); if (i >= 0) RECIPES[i].reproductions = r.reproductions;
+        renderRepros(root, r);
+      } catch (err) { btn.disabled = false; flashError(err); }
+    };
+  }
+  $$("[data-rdel]", box).forEach((b) => (b.onclick = async () => {
+    if (!confirm("Delete this reproduction?")) return;
+    try { await store.deleteReproduction(+b.dataset.rdel); r.reproductions = Math.max(0, (r.reproductions || 1) - 1); renderRepros(root, r); } catch (e) { flashError(e); }
+  }));
+  $$("[data-rhide]", box).forEach((b) => (b.onclick = async () => {
+    const [id, h] = b.dataset.rhide.split(":");
+    try { await store.hideReproduction(+id, h === "1"); renderRepros(root, r); } catch (e) { flashError(e); }
+  }));
+}
+
 async function renderComments(root, r) {
   const box = $("[data-comments]", root);
   let list = [];
@@ -1079,7 +1207,14 @@ $("#theme").onclick = () => {
 // ------------------------------------------------------------------ submit
 const DRAFT_KEY = "nr.draft";
 const emptyDraft = () => ({ name: "", description: "", model: "Qwen/Qwen3.5-4B", tags: [], neurons: [{ layer: "", neuron: "", dose: "" }],
-  op: "add", rep: "", temp: "", examples: [{ prompt: "", output: "", base_output: "" }], source: "", notes: "" });
+  op: "add", rep: "", temp: "", examples: [{ prompt: "", output: "", base_output: "" }], source: "", notes: "", curve_metric: "", curve: "" });
+
+// "0:0, 0.5:13, 0.8:20" -> [{dose, value}]; null if anything doesn't parse
+function parseCurve(text) {
+  const parts = String(text).split(/[,;\n]+/).map((x) => x.trim()).filter(Boolean);
+  const pts = parts.map((x) => { const m = x.match(/^([+-]?\d*\.?\d+)\s*(?::|=|→|->)\s*([+-]?\d*\.?\d+)$/); return m ? { dose: +m[1], value: +m[2] } : null; });
+  return pts.every(Boolean) ? pts : null;
+}
 
 let editing = null; // recipe id while editing an existing recipe
 const draftKey = () => (editing ? `nr.draft.edit.${editing}` : DRAFT_KEY);
@@ -1098,7 +1233,9 @@ function recipeToDraft(r) {
     neurons: sortNeurons(r.neurons).map((n) => ({ layer: String(n.layer), neuron: String(n.neuron), dose: String(n.dose), ...(n.expert != null ? { expert: String(n.expert) } : {}) })),
     op: (r.method && r.method.op) || "add", rep: s.repetition_penalty ?? "", temp: s.temperature ?? "",
     examples: (r.examples && r.examples.length ? r.examples : [{ prompt: "", output: "" }]).map((e) => ({ prompt: e.prompt || "", output: e.output || "", base_output: e.base_output || "" })),
-    source: r.source || "", notes: r.notes || "", _orig: { method: r.method || null, sampling: r.sampling || null, conditional: r.conditional || null, aliases: r.aliases || [], examples: r.examples || [] },
+    source: r.source || "", notes: r.notes || "",
+    curve_metric: (r.dose_curve && r.dose_curve.metric) || "", curve: r.dose_curve ? r.dose_curve.points.map((p) => `${p.dose}:${p.value}`).join(", ") : "",
+    _orig: { method: r.method || null, sampling: r.sampling || null, conditional: r.conditional || null, aliases: r.aliases || [], examples: r.examples || [] },
   };
 }
 
@@ -1165,6 +1302,8 @@ function draftToRecipe(d, id) {
   if (Object.keys(sampling).length) r.sampling = sampling;
   if (d.source.trim()) r.source = d.source.trim();
   if (d.notes.trim()) r.notes = d.notes.trim();
+  const pts = (d.curve || "").trim() ? parseCurve(d.curve) : null;
+  if (pts && (d.curve_metric || "").trim()) r.dose_curve = { metric: d.curve_metric.trim(), points: pts };
   return r;
 }
 
@@ -1187,6 +1326,12 @@ function validate(d) {
   if (String(d.rep).trim() !== "" && !(Number(d.rep) >= 1 && Number(d.rep) <= 3)) errs.sampling = "rep pen between 1 and 3";
   if (String(d.temp).trim() !== "" && !(Number(d.temp) >= 0 && Number(d.temp) <= 5)) errs.sampling = "temperature between 0 and 5";
   const ex = d.examples.filter((e) => e.prompt.trim() || e.output.trim());
+  if ((d.curve || "").trim() || (d.curve_metric || "").trim()) {
+    const pts = parseCurve(d.curve || "");
+    if (!(d.curve_metric || "").trim()) errs.curve = "name what you measured, e.g. meows per answer";
+    else if (!pts || pts.length < 2) errs.curve = "at least two dose:value pairs, like 0:0, 0.5:13, 0.8:20";
+    else if (pts.length > 24) errs.curve = "24 points max";
+  }
   if (!ex.length) errs.examples = "at least one example";
   else if (ex.some((e) => !e.prompt.trim() || !e.output.trim())) errs.examples = "each example needs a prompt and the steered output";
   return errs;
@@ -1205,10 +1350,13 @@ async function renderBatch(list) {
     <h1>Import ${items.length} recipe${items.length === 1 ? "" : "s"}</h1>
     <p class="dim">${ok.length} ready${items.length - ok.length ? `, ${items.length - ok.length} with problems (skipped)` : ""}. Each one is published under your name and goes through moderation like any other.</p>
     <ol class="blist">${items.map((x) => `<li data-bi="${x.i}"><span class="bn">${esc(x.name)}</span><span class="bs ${x.errs.length ? "err" : "dim"}">${x.errs.length ? esc(x.errs.join("; ")) : "ready"}</span></li>`).join("")}</ol>
+    ${store.mode === "supabase" ? `<label class="chk"><input type="checkbox" data-bdraft> save as drafts (only you see them; publish each when you've checked it)</label>` : ""}
     <div class="pub"><button class="btn primary" data-bgo ${ok.length ? "" : "disabled"}>Publish ${ok.length}</button><button class="btn" data-bcancel>Back to the form</button></div>
     <p class="dim quota" data-bsum role="status"></p>
   </div></div>`;
   $("[data-bcancel]").onclick = () => renderSubmit();
+  const bd = $("[data-bdraft]");
+  if (bd) bd.onchange = () => { $("[data-bgo]").textContent = `${bd.checked ? "Save" : "Publish"} ${ok.length}${bd.checked ? " as drafts" : ""}`; };
   $("[data-bgo]").onclick = async (e) => {
     if (!signedIn() && store.mode === "supabase") return signInPrompt("publish");
     const go = e.currentTarget; go.disabled = true;
@@ -1219,7 +1367,7 @@ async function renderBatch(list) {
       const st = $(`[data-bi="${x.i}"] .bs`);
       st.className = "bs dim"; st.textContent = "publishing…";
       try {
-        const id = await store.submit(draftToRecipe(x.d, "new"));
+        const id = await store.submit(draftToRecipe(x.d, "new"), { draft: !!$("[data-bdraft]")?.checked });
         st.innerHTML = `<a href="#/r/${esc(id)}">published</a>`; done++;
       } catch (err) {
         st.className = "bs err"; st.textContent = errText(err); failed++;
@@ -1274,6 +1422,11 @@ function renderSubmit() {
         </div></div>
       <label class="f"><span>source link</span><input data-k="source" value="${esc(d.source)}" placeholder="https://x.com/…" spellcheck="false"></label>
       <label class="f"><span>notes</span><textarea data-k="notes" placeholder="how you found it, what breaks it, doses that also work">${esc(d.notes)}</textarea></label>
+      <div class="f" data-f="curve"><span>dose curve <span class="faint">optional: what you measured at a few doses</span></span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input data-k="curve_metric" aria-label="dose curve: what was measured" value="${esc(d.curve_metric || "")}" placeholder="meows per answer" style="flex:1 1 160px">
+          <input data-k="curve" aria-label="dose curve: dose:value pairs" value="${esc(d.curve || "")}" placeholder="0:0, 0.5:13, 0.8:20, 1.0:24" class="mono" spellcheck="false" style="flex:2 1 220px">
+        </div></div>
     </div>
     <div class="panel">
       <h2>Examples<span class="faint">at least one</span></h2>
@@ -1444,7 +1597,7 @@ function renderSubmit() {
   if (editing) {
     pub.innerHTML = `<button class="btn primary" data-save>Save changes</button><button class="btn" data-discard>Cancel</button>`;
   } else if (store.mode === "supabase") {
-    pub.innerHTML = signedIn() ? `<button class="btn primary" data-publish>Publish</button><span class="dim">as @${esc(u.handle)}</span>`
+    pub.innerHTML = signedIn() ? `<button class="btn primary" data-publish>Publish</button><button class="btn" data-savedraft title="only you can see it until you publish">Save as draft</button><span class="dim">as @${esc(u.handle)}</span>`
       : `<button class="btn primary" data-signin>Sign in to publish</button>`;
   } else {
     pub.innerHTML = `${CFG.repo ? `<button class="btn primary" data-pr>Open pull request</button><button class="btn" data-issue>Open issue</button>` : ""}
@@ -1460,6 +1613,21 @@ function renderSubmit() {
   bind("[data-signin]", () => signInPrompt("publish"));
   const st = $("[data-signin-top]");
   if (st) st.onclick = (e) => { e.stopPropagation(); signInPrompt("publish"); };
+  bind("[data-savedraft]", async (e) => {
+    const b = e.currentTarget;
+    const r = await ready();
+    if (!r) return;
+    b.disabled = true; b.textContent = "Saving…";
+    pubErr("");
+    try {
+      const id = await store.submit(r, { draft: true });
+      localStorage.removeItem(DRAFT_KEY);
+      RECIPES = await store.list();
+      editorOpen = false;
+      location.hash = "#/r/" + id;
+      flashOk(`Saved “${r.name}” as a draft. Only you can see it.`);
+    } catch (err) { console.error(err); b.disabled = false; b.textContent = "Save as draft"; pubErr(errText(err)); }
+  });
   bind("[data-publish]", async (e) => {
     const b = e.currentTarget;
     if (!signedIn()) return signInPrompt("publish");
