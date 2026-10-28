@@ -33,3 +33,31 @@ end $$;
 
 -- new X sign-ups: the identity row lands after the user row, and handle_identity_linked fires on it (insert), so
 -- sync_x_profile above covers them too.
+
+-- The claim runs inside the auth server's transaction (role supabase_auth_admin), which the recipe edit trigger treats
+-- as an ordinary user and so reverts ownership changes. The claim marks its transaction as a trusted write; is_backend()
+-- honors that. Only definer functions can set it (clients can't run set_config through the API).
+create or replace function public.is_backend() returns boolean
+language sql stable as $$
+  select coalesce(auth.role(), '') = 'service_role' or session_user in ('postgres', 'supabase_admin')
+      or coalesce(current_setting('neuronary.trusted_write', true), '') = 'on'
+$$;
+
+create or replace function public.claim_attributed_recipes(uid uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  xh text := public.x_username(uid);
+  h text := (select handle::text from public.profiles where id = uid);
+  n int;
+begin
+  if xh is null or h is null then return 0; end if;
+  perform set_config('neuronary.trusted_write', 'on', true);
+  update public.recipes
+     set user_id = uid, author_handle = h, author_url = 'https://x.com/' || xh
+   where user_id is null and origin = 'site'
+     and lower(regexp_replace(coalesce(author_url, ''), '^https://(x|twitter)\.com/([A-Za-z0-9_]+)/?$', '\2')) = lower(xh);
+  get diagnostics n = row_count;
+  perform set_config('neuronary.trusted_write', 'off', true);
+  return n;
+end $$;
+revoke all on function public.claim_attributed_recipes(uuid) from public, anon, authenticated;

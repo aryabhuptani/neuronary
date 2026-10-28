@@ -53,20 +53,25 @@ function card(r: Record<string, any> | null) {
     return h("div", { style: { display: "flex", flexDirection: "column", justifyContent: "center", width: "100%", height: "100%", padding: "0 90px", background: C.bg, fontFamily: "Inter" } },
       head, h("div", { style: { marginTop: 24, fontSize: 36, color: C.dim } }, "a dictionary of neuron steering recipes for language models"));
   }
+  // header: logo on the left, the model it runs on, prominent, on the right
+  const top = h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } }, head,
+    h("div", { style: { display: "flex", padding: "8px 18px", borderRadius: 10, border: `1px solid ${C.line}`, fontFamily: "Mono", fontSize: 26, color: C.dim } }, r.model));
   const ns: Neuron[] = [...r.neurons].sort((a: Neuron, b: Neuron) => a.layer - b.layer || a.neuron - b.neuron);
   const ex = (r.examples ?? []).find((e: any) => e.base_output) ?? (r.examples ?? [])[0];
-  const prompt = ex ? clip(ex.prompt, 90) : "";
+  // placeholder prompts like "(prompt not shown in the source tweet)" aren't worth a line
+  const prompt = ex && !/^\(.*\)$/.test(String(ex.prompt).trim()) ? clip(ex.prompt, 90) : "";
   const body = !ex ? null : ex.base_output
     ? h("div", { style: { display: "flex", gap: 18, marginTop: 26 } }, panel("base", clip(ex.base_output, 120), C.faint), panel("steered", clip(ex.output, 120), C.up))
     : h("div", { style: { display: "flex", marginTop: 26 } }, panel("steered", clip(ex.output, 220), C.up));
-  return h("div", { style: { display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: "56px 70px", background: C.bg, fontFamily: "Inter", color: C.ink } },
-    head,
+  // bottom padding clears the title caption X lays over the lower-left of link cards
+  return h("div", { style: { display: "flex", flexDirection: "column", width: "100%", height: "100%", padding: "48px 70px 92px", background: C.bg, fontFamily: "Inter", color: C.ink } },
+    top,
     h("div", { style: { marginTop: 30, fontSize: r.name.length > 34 ? 52 : 64, fontWeight: 600, lineHeight: 1.1 } }, clip(r.name, 70)),
     h("div", { style: { display: "flex", flexWrap: "wrap", gap: 12, marginTop: 22 } }, ...ns.slice(0, 6).map(chip),
       ...(ns.length > 6 ? [h("div", { style: { fontSize: 28, color: C.dim, alignSelf: "center" } }, `+${ns.length - 6} more`)] : [])),
     prompt ? h("div", { style: { marginTop: 24, fontSize: 22, color: C.dim } }, `“${prompt}”`) : null,
     body,
-    h("div", { style: { display: "flex", marginTop: "auto", fontSize: 22, color: C.faint } }, `@${r.author_handle} · ${r.model}`));
+    h("div", { style: { display: "flex", marginTop: 22, fontSize: 22, color: C.faint } }, `@${r.author_handle}`));
 }
 
 Deno.serve(async (req) => {
