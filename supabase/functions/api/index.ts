@@ -165,7 +165,7 @@ const friendly = (msg: string) => msg.replace(/new row for relation "recipes" vi
 
 async function publish(u: User, body: Record<string, any>) {
   const me = need(u);
-  // same per-user limit as the site (100 a day, 500 for trusted publishers, none for admins)
+  // same per-user limit as the site (20 a day for picked names, 100 for X-verified accounts, 500 for trusted publishers, none for admins)
   const { data: q } = await sb.rpc("recipe_quota_for", { uid: me.id });
   if (q && q.limit != null && q.used >= q.limit) {
     throw new HttpError(429, `rate limit: ${q.limit} recipes a day${q.next_at ? `; next one at ${new Date(q.next_at).toISOString()}` : ""}`);
