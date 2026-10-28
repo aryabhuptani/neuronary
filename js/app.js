@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027185821";
-import { createStore } from "./store.js?v=20261027185821";
+import { ABOUT_HTML } from "./about.js?v=20261027185923";
+import { createStore } from "./store.js?v=20261027185923";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027185821";
+} from "./format.js?v=20261027185923";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -684,7 +684,7 @@ function renderBrowse(params) {
   const nActive = ["model", "tags", "n", "sign", "layers", "author"].filter((k) => p[k]).length;
   const bar = `<div class="toolbar ${filtersOpen ? "open" : ""}">
     <span class="seg" id="sort">${["hot", "top", "new", "layer"].map((s) => `<button data-sort="${s}" class="${s === sort ? "on" : ""}">${s}</button>`).join("")}</span>
-    <button class="ficon" data-random aria-label="random recipe" title="random recipe">${I.dice}</button>
+    <button class="ficon dice" data-random aria-label="random recipe" title="random recipe">${I.dice}</button>
     <button class="ficon ${nActive ? "active" : ""}" data-ftoggle aria-label="filters" aria-expanded="${filtersOpen}">${I.filter}${nActive ? `<span class="badge">${nActive}</span>` : ""}</button>
     ${ddHtml("model", "model", models.length === 1 ? shortModel(models[0]) : models.length ? models.length : "",
       checklist("model", Object.entries(mc).sort((a, b) => b[1] - a[1]).map(([m, n]) => [m, n]), models, true))}

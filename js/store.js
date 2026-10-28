@@ -143,7 +143,7 @@ class LocalStore {
 // ---------------------------------------------------------------- supabase
 // The database holds every recipe (repo ones are synced in by scripts/sync_repo.py). Sign-in is X (OAuth) or an
 // anonymous session plus a handle; anonymous users can link X later and keep everything.
-const SUMMARY = "id,name,description,model,neurons,method,sampling,tags,aliases,author_handle,author_url,source,date,created_at,user_id,origin,hidden,dose_curve,featured,draft";
+const SUMMARY = "id,name,description,model,neurons,method,sampling,tags,aliases,author_handle,author_url,source,date,created_at,user_id,origin,hidden,dose_curve,featured,draft,search_text";
 
 class SupabaseStore {
   mode = "supabase";

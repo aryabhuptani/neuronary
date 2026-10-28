@@ -238,12 +238,12 @@ body.list-mode { background: var(--bg); }
 .ex .b-o { color: var(--dim); }
 .ex .gen { margin-top: 6px; font: 11.5px var(--mono); color: var(--faint); }
 .rail { font-size: 13.5px; }
-.rail .vote { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 4px; border-radius: 18px; background: var(--raise); }
-.rail .vote button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 4px; color: var(--faint); }
-@media (hover: hover) { .rail .vote button:hover { background: var(--bg); } }
-.rail .vote .n { font: 500 15px var(--mono); min-width: 2ch; text-align: center; }
-.rail .vote.v1 .n, .rail .vote.v1 .upv { color: var(--up); }
-.rail .vote.v-1 .n, .rail .vote.v-1 .downv { color: var(--down); }
+.rail .vote, .mobacts .vote { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 4px; border-radius: 18px; background: var(--raise); }
+.rail .vote button, .mobacts .vote button { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 4px; color: var(--faint); }
+@media (hover: hover) { .rail .vote button:hover, .mobacts .vote button:hover { background: var(--bg); } }
+.rail .vote .n, .mobacts .vote .n { font: 500 15px var(--mono); min-width: 2ch; text-align: center; }
+.rail .vote.v1 .n, .rail .vote.v1 .upv, .mobacts .vote.v1 .n, .mobacts .vote.v1 .upv { color: var(--up); }
+.rail .vote.v-1 .n, .rail .vote.v-1 .downv, .mobacts .vote.v-1 .n, .mobacts .vote.v-1 .downv { color: var(--down); }
 .rail .copies { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .rail .copies .btn { padding: 0 12px 0 10px; }
 .ibtn { gap: 7px; color: var(--ink); }
@@ -654,3 +654,6 @@ html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh
 .rform .seg { align-self: start; }
 .sheet:focus { outline: none; }
 .o.md p, .o.md li { white-space: pre-wrap; }
+
+/* the dice shows at every width (the filter toggle next to it is phone-only) */
+.ficon.dice { display: grid; }
