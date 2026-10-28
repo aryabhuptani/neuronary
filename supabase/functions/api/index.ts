@@ -192,9 +192,12 @@ async function edit(u: User, id: string, body: Record<string, any>) {
 async function comment(u: User, id: string, body: { body?: string; parent_id?: number }) {
   const me = need(u);
   if (!body.body || !String(body.body).trim()) throw new HttpError(400, "empty comment");
-  const { count } = await sb.from("comments").select("id", { count: "exact", head: true }).eq("user_id", me.id)
-    .gt("created_at", new Date(Date.now() - 3600e3).toISOString());
-  if ((count ?? 0) >= 300) throw new HttpError(429, "rate limit: 300 comments an hour");
+  // same as the site: each comment costs a moderation call, and nobody comments in bulk
+  const since = (ms: number) => sb.from("comments").select("id", { count: "exact", head: true }).eq("user_id", me.id)
+    .gt("created_at", new Date(Date.now() - ms).toISOString());
+  const [{ count: hour }, { count: day }] = await Promise.all([since(3600e3), since(86400e3)]);
+  if ((hour ?? 0) >= 60) throw new HttpError(429, "rate limit: 60 comments an hour");
+  if ((day ?? 0) >= 300) throw new HttpError(429, "rate limit: 300 comments a day");
   if (body.parent_id) {
     const { data: p } = await sb.from("comments").select("recipe_id,parent_id").eq("id", body.parent_id).maybeSingle();
     if (!p || p.recipe_id !== id || p.parent_id) throw new HttpError(400, "replies go one level deep, on the same recipe");

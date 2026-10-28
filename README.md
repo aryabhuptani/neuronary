@@ -97,7 +97,7 @@ file changes, so examples added on the site survive.
 - Everyone reads; signed-in users write only their own rows. Handles, authorship and ownership are set by the
   database, not the client. Admins (`profiles.is_admin`; the `_lyraaaa_` X account automatically) can edit, hide
   or delete anything and read reports.
-- Limits are backstops, not quotas: 1000 recipes a day for X-verified accounts, 200 for picked names, 10000 for trusted publishers, 300 comments and 500 reproductions an hour; Supabase limits anonymous sign-ins per IP.
+- Limits are backstops, not quotas: 1000 recipes a day for X-verified accounts, 200 for picked names, 10000 for trusted publishers, 500 reproductions an hour; comments 60 an hour and 300 a day (each one is a moderation call); picked-name sign-ups 10 an hour per IP; Supabase limits anonymous sign-ins per IP.
 - `config.js` holds the project URL and anon key. Both are public by design.
 
 Tests against a live project (they create and delete their own users and rows):
