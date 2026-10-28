@@ -150,9 +150,29 @@ class SupabaseStore {
   constructor(cfg) { this.cfg = cfg; this.listeners = []; this.session = null; this.profile = null; }
 
   async init() {
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.49.4");
+    // Only the two parts of Supabase the site uses (auth + the REST client), not the full bundle with realtime,
+    // storage and functions. Same versions supabase-js 2.49.4 ships; same storage key, so sessions carry over.
+    const [{ AuthClient }, { PostgrestClient }] = await Promise.all([
+      import("https://esm.sh/@supabase/auth-js@2.69.1"),
+      import("https://esm.sh/@supabase/postgrest-js@1.19.4"),
+    ]);
+    const base = this.cfg.supabaseUrl.replace(/\/$/, ""), key = this.cfg.supabaseAnonKey;
     // PKCE: OAuth comes back as ?code=... (not #access_token=..., which the hash router would read as a page)
-    this.sb = createClient(this.cfg.supabaseUrl, this.cfg.supabaseAnonKey, { auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" } });
+    const auth = new AuthClient({
+      url: base + "/auth/v1", headers: { apikey: key, Authorization: `Bearer ${key}` },
+      storageKey: `sb-${new URL(base).hostname.split(".")[0]}-auth-token`,
+      persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "pkce",
+    });
+    // REST calls carry the signed-in user's token (or the anon key)
+    const authedFetch = async (input, init = {}) => {
+      const { data } = await auth.getSession();
+      const h = new Headers(init.headers);
+      h.set("apikey", key);
+      h.set("Authorization", `Bearer ${(data.session && data.session.access_token) || key}`);
+      return fetch(input, { ...init, headers: h });
+    };
+    const rest = new PostgrestClient(base + "/rest/v1", { headers: { apikey: key }, fetch: authedFetch });
+    this.sb = { auth, from: (t) => rest.from(t), rpc: (fn, args, opts) => rest.rpc(fn, args, opts) };
     // Tokens in the address bar (#access_token=...) are never accepted: a link could sign you into someone else's
     // account. PKCE codes only work in the browser that started the sign-in. app.js strips any leftovers.
     const { data, error } = await this.sb.auth.getSession();
