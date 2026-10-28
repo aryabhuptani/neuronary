@@ -123,6 +123,17 @@ try:
         if s < 400 and isinstance(d, list) and d:
             made.append(d[0]["id"])
 
+    # daily limit: users can't raise their own; at the limit the error says when the next slot opens
+    s, d = call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", ta, {"recipe_limit": 999}, prefer="return=representation")
+    check("can't raise own recipe limit", not (s == 200 and d and d[0].get("recipe_limit") == 999), d)
+    call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", body={"recipe_limit": 1}, key=SERVICE, token=SERVICE)
+    s, d = call("POST", "/rest/v1/recipes", ta, recipe(f"rls-lim-{tag}"), prefer="return=representation")
+    if s == 201:
+        made.append(d[0]["id"])
+    msg = d.get("message", "") if isinstance(d, dict) else ""
+    check("limit error names the next slot", s >= 400 and "rate limit: 1 recipes a day; next one at 20" in msg, d)
+    call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", body={"recipe_limit": None}, key=SERVICE, token=SERVICE)
+
     s, d = call("PATCH", f"/rest/v1/recipes?id=eq.{ra}", tb, {"name": "pwned"}, prefer="return=representation")
     check("other user can't edit", s in (200, 204) and not d, d)
     s, d = call("DELETE", f"/rest/v1/recipes?id=eq.{ra}", tb, prefer="return=representation")

@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027164838";
-import { createStore } from "./store.js?v=20261027164838";
+import { ABOUT_HTML } from "./about.js?v=20261027171023";
+import { createStore } from "./store.js?v=20261027171023";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027164838";
+} from "./format.js?v=20261027171023";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -187,14 +187,33 @@ function flashCopied(btn) {
 }
 const copyBtn = (text, label) => `<button class="cbtn" data-copy="${esc(text)}" aria-label="${esc(label)}" title="${esc(label)}">${I.copy}</button>`;
 
+// Turns database errors into something a person can act on.
+function errText(e) {
+  const m = String((e && e.message) || e);
+  const rl = m.match(/rate limit: (\d+) recipes a day(?:; next one at (\S+))?/);
+  if (rl) {
+    let when = "";
+    if (rl[2]) {
+      const t = new Date(rl[2]);
+      const time = t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }).toLowerCase();
+      when = t.toDateString() === new Date().toDateString() ? ` Try again at ${time}.`
+        : ` Try again ${t.toLocaleDateString([], { weekday: "short" })} at ${time}.`;
+    }
+    return `Daily limit reached (${rl[1]} recipes a day).${when} Your draft is saved.`;
+  }
+  const cl = m.match(/rate limit: (\d+) comments an hour/);
+  if (cl) return `Comment limit reached (${cl[1]} an hour). Try again in a bit.`;
+  return m;
+}
+
 function flashError(e) {
   console.error(e);
   const m = document.createElement("div");
   m.className = "err";
   m.style.cssText = "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--bg);padding:8px 14px;border-radius:4px;box-shadow:var(--shadow);z-index:60";
-  m.textContent = String(e.message || e);
+  m.textContent = errText(e);
   document.body.appendChild(m);
-  setTimeout(() => m.remove(), 3500);
+  setTimeout(() => m.remove(), 6000);
 }
 
 // ------------------------------------------------------------------ search box
@@ -335,6 +354,16 @@ const ageH = (r) => Math.max(0, (Date.now() - (Date.parse(r.date) || Date.now())
 function sortRecipes(rs, sort) {
   const a = [...rs];
   if (sort === "top") a.sort((x, y) => y.score - x.score || (y.date > x.date ? 1 : -1));
+  else if (sort === "layer") {
+    // shallowest neuron first, then the next one, so recipes sharing early layers sit together
+    const ks = new Map(a.map((r) => [r, sortNeurons(r.neurons).map((n) => [n.layer, n.expert ?? -1, n.neuron])]));
+    a.sort((x, y) => {
+      const p = ks.get(x), q = ks.get(y);
+      for (let i = 0; i < Math.min(p.length, q.length); i++)
+        for (let j = 0; j < 3; j++) if (p[i][j] !== q[i][j]) return p[i][j] - q[i][j];
+      return p.length - q.length || y.score - x.score;
+    });
+  }
   else if (sort === "new") a.sort((x, y) => (y.date > x.date ? 1 : y.date < x.date ? -1 : y.score - x.score));
   else a.sort((x, y) => (y.score + 1) / Math.pow(ageH(y) + 2, 1.5) - (x.score + 1) / Math.pow(ageH(x) + 2, 1.5));
   return a;
@@ -508,7 +537,7 @@ function radios(key, opts, cur) {
 function renderBrowse(params) {
   const p = Object.fromEntries(params.entries());
   const view = p.view === "list" ? "list" : "cards";
-  const sort = ["hot", "top", "new"].includes(p.sort) ? p.sort : "hot";
+  const sort = ["hot", "top", "new", "layer"].includes(p.sort) ? p.sort : "hot";
   document.body.className = view === "list" ? "list-mode" : "";
   const rs = sortRecipes(filterRecipes(p), sort);
   const tags = (p.tags || "").split(",").filter(Boolean);
@@ -528,7 +557,7 @@ function renderBrowse(params) {
 
   const nActive = ["model", "tags", "n", "sign", "layers", "author"].filter((k) => p[k]).length;
   const bar = `<div class="toolbar ${filtersOpen ? "open" : ""}">
-    <span class="seg" id="sort">${["hot", "top", "new"].map((s) => `<button data-sort="${s}" class="${s === sort ? "on" : ""}">${s}</button>`).join("")}</span>
+    <span class="seg" id="sort">${["hot", "top", "new", "layer"].map((s) => `<button data-sort="${s}" class="${s === sort ? "on" : ""}">${s}</button>`).join("")}</span>
     <button class="ficon ${nActive ? "active" : ""}" data-ftoggle aria-label="filters" aria-expanded="${filtersOpen}">${I.filter}${nActive ? `<span class="badge">${nActive}</span>` : ""}</button>
     ${ddHtml("model", "model", models.length === 1 ? shortModel(models[0]) : models.length ? models.length : "",
       checklist("model", Object.entries(mc).sort((a, b) => b[1] - a[1]).map(([m, n]) => [m, n]), models, true))}
@@ -1259,6 +1288,12 @@ function renderSubmit() {
       <button class="btn ${CFG.repo ? "" : "primary"}" data-publish>Publish in this browser</button><button class="btn" data-dl>Download JSON</button>`;
   }
   const bind = (sel, f) => { const b = $(sel, pub); if (b) b.onclick = f; };
+  // errors stay next to the button until the next attempt
+  const pubErr = (t) => {
+    let el = $("[data-puberr]", pub.parentNode);
+    if (!el) { el = document.createElement("p"); el.className = "err puberr"; el.dataset.puberr = ""; el.setAttribute("role", "alert"); pub.after(el); }
+    el.textContent = t; el.hidden = !t;
+  };
   bind("[data-signin]", () => signInPrompt("publish"));
   const st = $("[data-signin-top]");
   if (st) st.onclick = (e) => { e.stopPropagation(); signInPrompt("publish"); };
@@ -1268,6 +1303,7 @@ function renderSubmit() {
     const r = await ready();
     if (!r) return;
     b.disabled = true; b.textContent = "Publishing…";
+    pubErr("");
     try {
       const id = await store.submit(r);
       localStorage.removeItem(DRAFT_KEY);
@@ -1275,8 +1311,9 @@ function renderSubmit() {
       editorOpen = false;
       location.hash = "#/r/" + id;
     } catch (err) {
-      b.disabled = false; b.textContent = "Publish failed: retry";
-      flashError(err);
+      console.error(err);
+      b.disabled = false; b.textContent = "Publish";
+      pubErr(errText(err));
     }
   });
   bind("[data-save]", async (e) => {
@@ -1284,6 +1321,7 @@ function renderSubmit() {
     const r = await ready();
     if (!r) return;
     b.disabled = true; b.textContent = "Saving…";
+    pubErr("");
     try {
       await store.update(editing, r);
       localStorage.removeItem(draftKey());
@@ -1292,7 +1330,7 @@ function renderSubmit() {
       editorOpen = false;
       RECIPES = await store.list();
       if (location.hash === "#/r/" + id) route(); else location.hash = "#/r/" + id;
-    } catch (err) { b.disabled = false; b.textContent = "Save failed: retry"; flashError(err); }
+    } catch (err) { console.error(err); b.disabled = false; b.textContent = "Save changes"; pubErr(errText(err)); }
   });
   bind("[data-discard]", () => { localStorage.removeItem(draftKey()); editing = null; closeEditor(); });
   bind("[data-pr]", async () => { const r = await ready(); if (r) window.open(ghNew(r), "_blank", "noopener"); });

@@ -19,7 +19,7 @@ export const setKey = (ns) => sortNeurons(ns).map(neuronStr).join(" ");
 
 export function neuronHtml(n) {
   const d = n.dose;
-  return `<span class="k">${neuronKey(n)}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span>`;
+  return `<span class="k"><span class="ly">L${n.layer}</span>${n.expert != null ? "E" + n.expert : ""}N${n.neuron}</span><span class="d ${d >= 0 ? "up" : "down"}">${doseStr(d)}</span>`;
 }
 export const recipeHtml = (ns) => sortNeurons(ns).map(neuronHtml).join(" ");
 

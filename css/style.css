@@ -149,6 +149,8 @@ img.avatar { display: block; object-fit: cover; background: var(--raise); }
 /* recipe id: L13N7956-1.0 L14N8949+1.0 */
 .rid { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); word-spacing: 0.15em; overflow-wrap: anywhere; }
 .rid .d.up { color: var(--up); } .rid .d.down { color: var(--down); }
+/* layer stands out; a margin (not a space) keeps copied/selected text as L13N7956 */
+.rid .ly { font-weight: 700; margin-right: 0.12em; }
 
 .votes { display: inline-flex; align-items: center; gap: 4px; font: 500 12.5px var(--mono); }
 .votes button { display: grid; place-items: center; width: 18px; height: 18px; color: var(--faint); border-radius: 3px; }
