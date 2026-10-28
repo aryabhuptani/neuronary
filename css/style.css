@@ -381,7 +381,8 @@ body.modal-open .fab { display: none !important; }
   .toolbar .count { order: 10; flex-basis: 100%; margin: 2px 0 0; }
   .fab { display: inline-flex; }
   body.page-submit .fab { display: none; }
-  .modal { padding: 48px 0 0; }
+  /* bottom sheet: opens at 2/3 height, scrolls up to fill the screen */
+  .modal { padding: 33vh 0 0; padding-top: 33svh; overscroll-behavior: contain; }
   .modal .sheet { border-radius: 14px 14px 0 0; padding: 20px 18px 40px; min-height: 100%; }
   .rec h1 { font-size: 30px; }
   .ex .pair { grid-template-columns: 1fr; gap: 12px; }
