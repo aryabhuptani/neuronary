@@ -267,3 +267,7 @@ left join (select recipe_id, count(*) as n from public.reproductions where not h
 
 -- treetowntree: first trusted publisher
 update public.profiles set trusted = true where handle = 'treetowntree';
+
+-- the moderation log records reproductions too
+alter table public.moderation_log drop constraint if exists moderation_log_kind_check;
+alter table public.moderation_log add constraint moderation_log_kind_check check (kind in ('comment', 'recipe', 'reproduction'));
