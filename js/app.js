@@ -1,10 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261028080718";
-import { createStore } from "./store.js?v=20261028080718";
-import { randomPrompt } from "./prompts.js?v=20261028080718";
+import { ABOUT_HTML } from "./about.js?v=20261028103444";
+import { createStore } from "./store.js?v=20261028103444";
+import { randomPrompt } from "./prompts.js?v=20261028103444";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261028080718";
+} from "./format.js?v=20261028103444";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -526,6 +526,13 @@ async function renderMod() {
       return `<div class="mtext">${esc(c.body)}</div><div class="mmeta">@${esc(c.author_handle)} on <a href="/r/${esc(c.recipe_id)}">${esc(c.recipe_id)}</a>
         <button class="btn sbtn" data-mhide="comment:${c.id}:${c.hidden ? 0 : 1}">${c.hidden ? I.eyeoff + "<span>Unhide</span>" : I.eyeoff + "<span>Hide</span>"}</button>${c.hidden ? ` <span class="err">hidden</span>` : ""}</div>`;
     }
+    if (kind === "profile") {
+      const x = q.profiles[String(id)];
+      if (!x) return `<span class="faint">account ${esc(id)} (deleted)</span>`;
+      return `<div class="mtext">username <b>@${esc(x.handle)}</b>${x.name_status ? ` <span class="faint">(${esc(x.name_status === "renamed" ? "renamed by moderation" : "flagged; the owner can see it and pick another")})</span>` : ""}</div>
+        <div class="mmeta"><a href="/u/${encodeURIComponent(x.handle)}">profile</a>
+        <button class="btn sbtn" data-mname="${esc(x.id)}:rename">Rename to user_xxxxxx</button></div>`;
+    }
     if (kind === "reproduction") {
       const x = q.reproductions[String(id)];
       if (!x) return `<span class="faint">reproduction ${esc(id)} (deleted)</span>`;
@@ -582,6 +589,7 @@ async function renderMod() {
   $$("[data-mapprove]", main).forEach((b) => (b.onclick = async () => {
     const [logId, kind, id] = b.dataset.mapprove.split(":");
     try {
+      if (kind === "profile") { await store.resolveName(id, "approve"); RECIPES = await store.list(); return renderMod(); }
       if (kind === "comment") await store.hideComment(+id, false);
       else if (kind === "reproduction") await store.hideReproduction(+id, false);
       else await store.setHidden(id, false);
@@ -589,6 +597,11 @@ async function renderMod() {
       RECIPES = await store.list();
       renderMod();
     } catch (e) { flashError(e); }
+  }));
+  $$("[data-mname]", main).forEach((b) => (b.onclick = async () => {
+    const [uid, action] = b.dataset.mname.split(":");
+    if (!confirm("Rename this account to user_xxxxxx? They'll be asked to pick a new name.")) return;
+    try { const h = await store.resolveName(uid, action); flashOk(`Renamed to @${h}.`); RECIPES = await store.list(); renderMod(); } catch (e) { flashError(e); }
   }));
   $$("[data-mkeep]", main).forEach((b) => (b.onclick = async () => {
     try { await store.resolveReview(+b.dataset.mkeep); renderMod(); } catch (e) { flashError(e); }
@@ -1360,7 +1373,7 @@ function renderMe() {
   const u = store.user();
   const me = $("#me");
   if (u && !u.needsHandle) {
-    me.innerHTML = `<button id="mebtn" aria-label="account">${avatarHtml(u.handle, u.avatar)}</button>`;
+    me.innerHTML = `<button id="mebtn" aria-label="account${u.nameStatus ? " (your name needs attention)" : ""}">${avatarHtml(u.handle, u.avatar)}${u.nameStatus ? `<span class="medot"></span>` : ""}</button>`;
     $("#mebtn").onclick = (e) => { e.stopPropagation(); meMenu(u); };
   } else {
     me.innerHTML = `<button id="signin">${u ? "pick a name" : "sign in"}</button>`;
@@ -1383,7 +1396,12 @@ function popAt(cls) {
 function meMenu(u) {
   const pop = popAt("me-pop");
   const canLinkX = store.mode === "supabase" && u.anonymous && !!xProvider();
-  pop.innerHTML = `<div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
+  pop.innerHTML = `${u.nameStatus ? `<div class="namenote" role="status">${u.nameStatus === "renamed"
+      ? "Your name was removed by moderation and replaced with this one. Pick a new name:"
+      : `Your name <b>@${esc(u.handle)}</b> is waiting for a moderator's review. You can keep it, or pick another now:`}
+      <div class="namerow"><input data-newname placeholder="new name" maxlength="24" autocomplete="off" spellcheck="false" aria-label="new name"><button class="btn sbtn" data-rename>Change</button></div>
+      <div class="err" data-nameerr></div></div>` : ""}
+    <div class="lab">signed in as <b style="color:var(--ink)">@${esc(u.handle)}</b>${u.admin ? " · admin" : ""}${store.mode === "local" ? " (this browser only)" : ""}</div>
     <a class="menu-i" href="${userHref(u.handle)}">your profile</a>
     ${store.listTokens ? `<button class="menu-i" data-agents>API & agents</button>` : ""}
     ${u.admin && store.modQueue ? `<button class="menu-i" data-mod>moderation</button>` : ""}
@@ -1397,6 +1415,19 @@ function meMenu(u) {
   if (ab) ab.onclick = () => { closePops(); renderAgents(); };
   const l = $("[data-link]", pop);
   if (l) l.onclick = () => store.linkWith(xProvider()).catch(flashError);
+  const rn = $("[data-rename]", pop);
+  if (rn) {
+    const inp = $("[data-newname]", pop), err = $("[data-nameerr]", pop);
+    const go = async () => {
+      const h = inp.value.trim().replace(/^@/, "");
+      if (!/^[A-Za-z0-9_]{2,24}$/.test(h)) { err.textContent = "2–24 letters, digits or _"; return; }
+      rn.disabled = true; err.textContent = "";
+      try { await store.changeHandle(h); closePops(); flashOk(`You're @${h} now.`); RECIPES = await store.list(); route(); }
+      catch (e) { rn.disabled = false; err.textContent = /taken/.test(e.message) ? "that name is taken" : e.message; }
+    };
+    rn.onclick = go;
+    inp.onkeydown = (e) => { if (e.key === "Enter") go(); };
+  }
   $("[data-out]", pop).onclick = async () => {
     if (u.anonymous && !confirm("Sign out? This anonymous name can't be recovered.")) return;
     closePops();

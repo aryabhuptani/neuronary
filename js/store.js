@@ -203,7 +203,7 @@ class SupabaseStore {
     const u = this.session && this.session.user;
     this.profile = null;
     if (!u) return;
-    const { data } = await this.sb.from("profiles").select("handle,x_handle,is_admin,avatar_url,trusted").eq("id", u.id).maybeSingle();
+    const { data } = await this.sb.from("profiles").select("handle,x_handle,is_admin,avatar_url,trusted,name_status").eq("id", u.id).maybeSingle();
     this.profile = data || null;
   }
 
@@ -217,6 +217,7 @@ class SupabaseStore {
       anonymous: !!u.is_anonymous, url: p && p.x_handle ? `https://x.com/${p.x_handle}` : undefined,
       avatar: p ? p.avatar_url : null,
       // matches the database's is_verified(): a linked X account, or a trusted publisher / admin
+      nameStatus: p ? p.name_status || null : null, // "review" or "renamed": moderation flagged the name
       verified: !!((u.identities || []).some((i) => i.provider === "x" || i.provider === "twitter") || (p && (p.trusted || p.is_admin))),
     };
   }
@@ -476,13 +477,30 @@ class SupabaseStore {
     const cids = [...new Set([...log.filter((l) => l.kind === "comment").map((l) => +l.target_id), ...reports.filter((r) => r.comment_id).map((r) => r.comment_id)])];
     const rids = [...new Set([...log.filter((l) => l.kind === "recipe").map((l) => l.target_id), ...reports.filter((r) => r.recipe_id).map((r) => r.recipe_id)])];
     const pids = [...new Set(log.filter((l) => l.kind === "reproduction").map((l) => +l.target_id))];
-    const [{ data: cs }, { data: rs }, { data: ps }] = await Promise.all([
+    const uids = [...new Set(log.filter((l) => l.kind === "profile").map((l) => l.target_id))];
+    const [{ data: cs }, { data: rs }, { data: ps }, { data: us }] = await Promise.all([
       cids.length ? this.sb.from("comments").select("id,recipe_id,author_handle,body,hidden").in("id", cids) : Promise.resolve({ data: [] }),
       rids.length ? this.sb.from("recipes").select("id,name,author_handle,description,hidden").in("id", rids) : Promise.resolve({ data: [] }),
       pids.length ? this.sb.from("reproductions").select("id,recipe_id,author_handle,output,note,hidden").in("id", pids) : Promise.resolve({ data: [] }),
+      uids.length ? this.sb.from("profiles").select("id,handle,name_status").in("id", uids) : Promise.resolve({ data: [] }),
     ]);
     return { log, reports, comments: Object.fromEntries((cs || []).map((c) => [String(c.id), c])), recipes: Object.fromEntries((rs || []).map((r) => [r.id, r])),
-      reproductions: Object.fromEntries((ps || []).map((x) => [String(x.id), x])) };
+      reproductions: Object.fromEntries((ps || []).map((x) => [String(x.id), x])), profiles: Object.fromEntries((us || []).map((x) => [x.id, x])) };
+  }
+
+  // the owner of a flagged name picks a new one
+  async changeHandle(h) {
+    const { error } = await this.sb.rpc("change_handle", { h });
+    if (error) throw new Error(error.message);
+    await this._loadProfile();
+    this.listeners.forEach((f) => f(this.user()));
+  }
+
+  // admin: "approve" or "rename" a flagged name
+  async resolveName(uid, action) {
+    const { data, error } = await this.sb.rpc("resolve_name", { uid, action });
+    if (error) throw new Error(error.message);
+    return data;
   }
 
   async clearReport(id) {

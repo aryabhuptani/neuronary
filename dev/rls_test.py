@@ -123,6 +123,20 @@ try:
         if s < 400 and isinstance(d, list) and d:
             made.append(d[0]["id"])
 
+    # flagged names: owner sees the flag and can change the name; can't clear the flag by writing it
+    s, d = call("POST", "/rest/v1/rpc/change_handle", ta, {"h": "rlsnope" + tag[:6]})
+    check("unflagged name can't be changed", s >= 400, d)
+    call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", body={"name_status": "review"}, key=SERVICE, token=SERVICE)
+    s, d = call("PATCH", f"/rest/v1/profiles?id=eq.{ua}", ta, {"name_status": None}, prefer="return=representation")
+    s2, d2 = call("GET", f"/rest/v1/profiles?id=eq.{ua}&select=name_status")
+    check("can't clear your own name flag", d2 and d2[0]["name_status"] == "review", d2)
+    newh = ("rlsren" + tag)[:24]
+    s, d = call("POST", "/rest/v1/rpc/change_handle", ta, {"h": newh})
+    s2, d2 = call("GET", f"/rest/v1/profiles?id=eq.{ua}&select=handle,name_status")
+    s3, d3 = call("GET", f"/rest/v1/recipes?id=eq.{ra}&select=author_handle")
+    check("flagged owner renames everywhere", s == 200 and d2 and d2[0]["handle"] == newh and d2[0]["name_status"] is None and d3 and d3[0]["author_handle"] == newh, (d, d2, d3))
+    ha = newh
+
     # editable user metadata can't claim an X handle (or admin)
     s, d = call("PUT", "/auth/v1/user", ta, {"data": {"user_name": "_lyraaaa_", "preferred_username": "_lyraaaa_"}})
     s, d = call("GET", f"/rest/v1/profiles?id=eq.{ua}&select=x_handle,is_admin")

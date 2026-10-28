@@ -58,6 +58,8 @@ Deno.serve(async (req) => {
     if (verdict === "remove") {
       const { data: h } = await sb.rpc("rename_flagged_handle", { uid: id });
       reason = `${reason} (was "${row.handle}", renamed to ${h})`;
+    } else if (verdict === "review") {
+      await sb.rpc("flag_handle", { uid: id }); // the owner sees it in their account menu and can pick another
     }
   } else if (verdict === "remove" || verdict === "review") { // review: hidden until an admin approves it
     await sb.from(table).update({ hidden: true }).eq("id", id);
