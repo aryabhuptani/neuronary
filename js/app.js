@@ -1,10 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261027231540";
-import { createStore } from "./store.js?v=20261027231540";
-import { randomPrompt } from "./prompts.js?v=20261027231540";
+import { ABOUT_HTML } from "./about.js?v=20261027231833";
+import { createStore } from "./store.js?v=20261027231833";
+import { randomPrompt } from "./prompts.js?v=20261027231833";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027231540";
+} from "./format.js?v=20261027231833";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -25,6 +25,7 @@ const I = {
   share: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.5M5 5.2 8 2.2l3 3M3.5 8.5v5h9v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   repro: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.5 5.5 11.5 10.5 5M7.5 11.5 8.5 12.5 13.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   star: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
+  starOn: '<svg class="staron" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="var(--warn)" stroke="var(--warn)" stroke-width="1.4" stroke-linejoin="round"/></svg>',
   dice: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="5.5" r="1.1" fill="currentColor"/><circle cx="10.5" cy="10.5" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/></svg>',
   fork: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="12.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 5.1v1.4c0 1.4 1 2.2 2.3 2.4L8 9.1l1.2-.2c1.3-.2 2.3-1 2.3-2.4V5.1M8 9.1v1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
   up: '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 8.5L6 3l4.5 5.5z" fill="currentColor"/></svg>',
@@ -1007,7 +1008,7 @@ function recipeActions(r) {
   }
   const u = store.user();
   if (u && u.admin && store.mode === "supabase") out.push(b("hide", I.eyeoff, r.hidden ? "Unhide" : "Hide"));
-  if (u && u.admin && store.mode === "supabase" && !r.draft) out.push(b("feature", I.star, r.featured ? "Unfeature" : "Feature"));
+  if (u && u.admin && store.mode === "supabase" && !r.draft) out.push(b("feature", r.featured ? I.starOn : I.star, r.featured ? "Featured" : "Feature"));
   if (store.canEdit && store.canEdit(r) && r.origin !== "repo") out.push(b("delete", I.trash, "Delete", "danger")); // repo recipes would sync back
   if (store.mode === "supabase" && !(store.canEdit && store.canEdit(r))) out.push(b("report", I.flag, "Report", "quiet"));
   return out.length ? `<div class="ractions">${out.join("")}</div>` : "";
@@ -1031,7 +1032,9 @@ function wireRecipe(root, r) {
         await store.setFeatured(r.id, !r.featured);
         r.featured = !r.featured;
         RECIPES = await store.list();
-        b.querySelector("span").textContent = r.featured ? "Unfeature" : "Feature";
+        b.querySelector("span").textContent = r.featured ? "Featured" : "Feature";
+        b.querySelector("svg").outerHTML = r.featured ? I.starOn : I.star;
+        b.title = r.featured ? "featured on the home page; click to unfeature" : "";
         return;
       }
       if (a === "share") {
