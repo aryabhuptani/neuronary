@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027180706";
-import { createStore } from "./store.js?v=20261027180706";
+import { ABOUT_HTML } from "./about.js?v=20261027181541";
+import { createStore } from "./store.js?v=20261027181541";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027180706";
+} from "./format.js?v=20261027181541";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -15,6 +15,8 @@ let RECIPES = [];
 
 // ------------------------------------------------------------------ icons
 const I = {
+  dice: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="2" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="5.5" r="1.1" fill="currentColor"/><circle cx="10.5" cy="10.5" r="1.1" fill="currentColor"/><circle cx="8" cy="8" r="1.1" fill="currentColor"/></svg>',
+  fork: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="3.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="12.5" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4.5 5.1v1.4c0 1.4 1 2.2 2.3 2.4L8 9.1l1.2-.2c1.3-.2 2.3-1 2.3-2.4V5.1M8 9.1v1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
   up: '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 8.5L6 3l4.5 5.5z" fill="currentColor"/></svg>',
   down: '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M1.5 3.5L6 9l4.5-5.5z" fill="currentColor"/></svg>',
   bubble: '<svg width="15" height="14" viewBox="0 0 15 14" aria-hidden="true"><path d="M2.5 1.5h10a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5H7l-3 2.5V10H2.5A1.5 1.5 0 0 1 1 8.5V3a1.5 1.5 0 0 1 1.5-1.5z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
@@ -582,6 +584,7 @@ function renderBrowse(params) {
   const nActive = ["model", "tags", "n", "sign", "layers", "author"].filter((k) => p[k]).length;
   const bar = `<div class="toolbar ${filtersOpen ? "open" : ""}">
     <span class="seg" id="sort">${["hot", "top", "new", "layer"].map((s) => `<button data-sort="${s}" class="${s === sort ? "on" : ""}">${s}</button>`).join("")}</span>
+    <button class="ficon" data-random aria-label="random recipe" title="random recipe">${I.dice}</button>
     <button class="ficon ${nActive ? "active" : ""}" data-ftoggle aria-label="filters" aria-expanded="${filtersOpen}">${I.filter}${nActive ? `<span class="badge">${nActive}</span>` : ""}</button>
     ${ddHtml("model", "model", models.length === 1 ? shortModel(models[0]) : models.length ? models.length : "",
       checklist("model", Object.entries(mc).sort((a, b) => b[1] - a[1]).map(([m, n]) => [m, n]), models, true))}
@@ -618,6 +621,12 @@ function renderBrowse(params) {
 function wireBrowse(p) {
   const set = (k, v) => { const q = { ...p, [k]: v }; go(browseHref(q)); };
   $$("[data-sort]").forEach((b) => (b.onclick = () => set("sort", b.dataset.sort)));
+  $("[data-random]").onclick = () => {
+    const pool = rs.length ? rs : RECIPES;
+    if (!pool.length) return;
+    modalPushed = true;
+    location.hash = "#/r/" + pool[Math.floor(Math.random() * pool.length)].id;
+  };
   const ft = $("[data-ftoggle]");
   if (ft) ft.onclick = (e) => { e.stopPropagation(); filtersOpen = !filtersOpen; openDd = null; renderBrowse(new URLSearchParams(Object.entries(p))); };
   $$("[data-view]").forEach((b) => (b.onclick = () => set("view", b.dataset.view === "cards" ? "" : b.dataset.view)));
@@ -674,7 +683,16 @@ function recipeHtmlBlock(r, { modal }) {
   const sk = setKey(r.neurons);
   const aka = RECIPES.filter((x) => x.id !== r.id && setKey(x.neurons) === sk).sort((a, b) => b.score - a.score);
   const keys = new Set(r.neurons.map(neuronKey));
-  const related = RECIPES.filter((x) => x.id !== r.id && setKey(x.neurons) !== sk && x.neurons.some((n) => keys.has(neuronKey(n))))
+  const kset = (x) => x.neurons.map(neuronKey);
+  // ingredients: posted recipes whose neurons are a strict subset of this one's (best-scored per neuron set)
+  const bestPer = (xs) => { const m = new Map(); for (const x of xs) { const k = kset(x).sort().join(" "); if (!m.has(k) || m.get(k).score < x.score) m.set(k, x); } return [...m.values()]; };
+  const ingredients = r.neurons.length > 1 ? bestPer(RECIPES.filter((x) => x.id !== r.id && x.neurons.length < r.neurons.length && kset(x).every((k) => keys.has(k))))
+    .sort((a, b) => b.neurons.length - a.neurons.length || b.score - a.score) : [];
+  // used in: combinations that contain all of this recipe's neurons
+  const usedIn = RECIPES.filter((x) => x.id !== r.id && x.neurons.length > r.neurons.length && [...keys].every((k) => x.neurons.some((n) => neuronKey(n) === k)))
+    .sort((a, b) => b.score - a.score).slice(0, 8);
+  const shown = new Set([...ingredients, ...usedIn].map((x) => x.id));
+  const related = RECIPES.filter((x) => x.id !== r.id && !shown.has(x.id) && setKey(x.neurons) !== sk && x.neurons.some((n) => keys.has(neuronKey(n))))
     .sort((a, b) => b.score - a.score).slice(0, 6);
   const hasBase = (r.examples || []).some((e) => e.base_output);
   const studio = studioFile(r);
@@ -694,6 +712,7 @@ function recipeHtmlBlock(r, { modal }) {
       ${r.hidden ? `<div class="hidbanner">${store.user() && store.user().admin ? "Hidden: only you and admins can see this recipe." : "Waiting for review: only you can see this recipe until a moderator approves it."}${store.user() && store.user().admin ? ` <button class="btn sbtn" data-ract="hide">${I.eyeoff}<span>Unhide</span></button>` : ""}</div>` : ""}
       <h1>${esc(r.name)}</h1>
       <div class="idrow"><span class="rid idline">${recipeHtml(r.neurons)}</span>${copyBtn(recipeStr(r.neurons), "copy recipe")}${edgeMark(r.neurons, r.model)}</div>
+      ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${ingredients.map((x) => `<a href="#/r/${esc(x.id)}">${esc(x.name)}</a>`).join(` <span class="dim">+</span> `)}</div>` : ""}
       <div class="meta">${r.author.url ? `<a href="${esc(r.author.url)}" target="_blank" rel="noopener">@${esc(r.author.handle)}</a>` : `<a href="${browseHref({ author: r.author.handle })}">@${esc(r.author.handle)}</a>`}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
         ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}
@@ -725,11 +744,15 @@ function recipeHtmlBlock(r, { modal }) {
         ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
           ${u > 0 ? `<a class="in" href="#/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
       </div>
-      <div class="blk"><div class="lab">method</div><div class="mono">${esc(methodTxt)}</div></div>
+      <div class="blk"><div class="lab">method <span class="unitq" data-tip="${esc(m.op === "add" && m.normalization !== "raw"
+        ? "Dose units: at the input of the layer's mlp.down_proj, every token gets act[n] += dose × median(‖residual leaving the layer‖) / ‖W_down[:, n]‖. So +1.0 adds one median residual norm along the neuron's output direction. Single neurons are usually coherent around 0.5–1.0, and doses add across neurons."
+        : m.op === "mul" ? "Multiply: the neuron's activation at mlp.down_proj's input is scaled by the dose." : "Raw units: the dose is added directly to the activation at mlp.down_proj's input.")}">units?</span></div><div class="mono">${esc(methodTxt)}</div></div>
       ${samplingText(r) ? `<div class="blk"><div class="lab">recommended sampling</div><div class="mono">${esc(samplingText(r))}</div></div>` : ""}
       ${aka.length || (r.aliases || []).length ? `<div class="blk"><div class="lab">also known as</div>
         ${(r.aliases || []).map((a) => `<div class="alias"><span>${esc(a)}</span></div>`).join("")}
         ${aka.map((x) => `<div class="alias"><a href="#/r/${esc(x.id)}">${esc(x.name)}</a><span class="s">${x.score}</span></div>`).join("")}</div>` : ""}
+      ${usedIn.length ? `<div class="blk"><div class="lab">used in</div>
+        ${usedIn.map((x) => `<a class="rel" href="#/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
       ${related.length ? `<div class="blk"><div class="lab">shares neurons with</div>
         ${related.map((x) => `<a class="rel" href="#/r/${esc(x.id)}"><span class="t">${esc(x.name)}</span><span class="rid">${recipeHtml(x.neurons)}</span></a>`).join("")}</div>` : ""}
       ${r.notes ? `<div class="blk"><div class="lab">notes</div><div class="notes">${linkify(r.notes)}</div></div>` : ""}
@@ -749,6 +772,7 @@ async function loadRecipe(id) {
 function recipeActions(r) {
   const out = [];
   const b = (act, icon, label, cls = "") => `<button class="btn sbtn ${cls}" data-ract="${act}">${icon}<span>${label}</span></button>`;
+  out.push(b("remix", I.fork, "Remix"));
   if (store.canEdit && store.canEdit(r)) {
     out.push(`<button class="btn sbtn" data-ract="edit">${I.edit}<span>Edit</span></button>`);
   }
@@ -766,6 +790,10 @@ function wireRecipe(root, r) {
       if (a === "edit") {
         if (overlay.innerHTML) { closeModal(true); }
         return openEditor(r.id);
+      }
+      if (a === "remix") {
+        if (store.mode === "supabase" && !signedIn()) return signInPrompt("remix this recipe", () => remix(r));
+        return remix(r);
       }
       if (a === "delete") {
         if (!confirm(`Delete “${r.name}”? Votes and comments go with it.`)) return;
@@ -858,6 +886,19 @@ function swipeToClose(modal) {
     else s.style.translate = "";
     y0 = null; dy = 0;
   });
+}
+
+// opens the submit form pre-filled from a recipe: same neurons, model, method, tags, sampling; new name and examples
+function remix(r) {
+  const cur = loadDraftFor(DRAFT_KEY);
+  if ((cur.name.trim() || cur.description.trim()) && !confirm("Replace your unfinished draft with this remix?")) return;
+  const d = recipeToDraft(r);
+  delete d._orig;
+  Object.assign(d, { name: "", description: "", examples: [{ prompt: "", output: "", base_output: "" }], source: `https://neuronary.org/#/r/${r.id}`, notes: `Remix of “${r.name}” by @${r.author.handle}.` });
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  if (overlay.innerHTML) closeModal(true);
+  editing = null;
+  openEditor();
 }
 
 function closeModalNav() {
@@ -1043,6 +1084,9 @@ const emptyDraft = () => ({ name: "", description: "", model: "Qwen/Qwen3.5-4B",
 let editing = null; // recipe id while editing an existing recipe
 const draftKey = () => (editing ? `nr.draft.edit.${editing}` : DRAFT_KEY);
 
+function loadDraftFor(key) {
+  try { return { ...emptyDraft(), ...JSON.parse(localStorage.getItem(key)) }; } catch { return emptyDraft(); }
+}
 function loadDraft() {
   try { return { ...emptyDraft(), ...JSON.parse(localStorage.getItem(draftKey())) }; } catch { return emptyDraft(); }
 }
@@ -1106,8 +1150,9 @@ function draftToRecipe(d, id) {
   const r = {
     id, name: d.name.trim(), description: d.description.trim(), model: d.model.trim(), neurons,
     tags: d.tags, examples: d.examples.filter((e) => e.prompt.trim() || e.output.trim()).map((e) => {
-      const o = { prompt: e.prompt.trim(), output: e.output.trim() };
-      if (e.base_output && e.base_output.trim()) o.base_output = e.base_output.trim();
+      // examples are stored exactly as written (whitespace included): they're the evidence
+      const o = { prompt: e.prompt, output: e.output };
+      if (e.base_output && e.base_output.trim()) o.base_output = e.base_output;
       return o;
     }),
     author: { handle: u ? u.handle : "anonymous", ...(u && u.url ? { url: u.url } : {}) },
@@ -1239,7 +1284,7 @@ function renderSubmit() {
         <label class="f"><span>base output <span class="faint">optional, the unsteered reply</span></span><textarea data-e="base_output">${esc(e.base_output || "")}</textarea></label>
       </div>`).join("")}</div>
       <button class="addlink" data-addex>+ example</button>
-      <div class="preview"><div class="dim" style="font-size:12px;margin-bottom:6px">recipe</div><div class="rid" data-preview></div></div>
+      <div class="preview"><div class="dim" style="font-size:12px;margin-bottom:6px">recipe</div><div class="rid" data-preview></div><p class="dupe" data-dupe role="status"></p></div>
       <div data-errsum class="err"></div>
       <div class="pub" data-pub></div>
       <p class="dim quota" data-quota hidden></p>
@@ -1251,6 +1296,10 @@ function renderSubmit() {
     const ns = d.neurons.filter((n) => n.layer !== "" && n.neuron !== "" && n.dose !== "" && Number.isFinite(Number(n.dose)))
       .map((n) => ({ layer: +n.layer, neuron: +n.neuron, dose: +n.dose }));
     $("[data-preview]").innerHTML = ns.length ? recipeHtml(ns) + edgeMark(ns, d.model) : `<span class="faint">—</span>`;
+    // same neurons (any doses) already posted?
+    const k = ns.map(neuronKey).sort().join(" ");
+    const same = k ? RECIPES.filter((x) => x.id !== editing && x.model === d.model.trim() && x.neurons.map(neuronKey).sort().join(" ") === k) : [];
+    $("[data-dupe]").innerHTML = same.length ? `Already posted with these neurons: ${same.slice(0, 3).map((x) => `<a href="#/r/${esc(x.id)}" target="_blank">${esc(x.name)}</a> by @${esc(x.author.handle)}`).join(", ")}${same.length > 3 ? ` and ${same.length - 3} more` : ""}. Post anyway if yours differs (doses, effect), or add an example there.` : "";
   };
   const showErrs = (errs, all) => {
     $$(".f[data-f]").forEach((f) => {

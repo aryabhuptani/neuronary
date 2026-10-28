@@ -2,10 +2,10 @@
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
+// full precision as stored (0.525 stays 0.525), at least one decimal (1 -> +1.0); the copied string is the tested recipe
 export function doseStr(d) {
-  // up to 4 decimals, as stored (0.525 stays 0.525), at least one (1 -> 1.0)
-  let s = (d >= 0 ? "+" : "-") + Math.abs(d).toFixed(4).replace(/0+$/, "");
-  if (s.endsWith(".")) s += "0";
+  let s = (d >= 0 ? "+" : "-") + String(Math.abs(d));
+  if (!s.includes(".") && !s.includes("e")) s += ".0";
   return s;
 }
 

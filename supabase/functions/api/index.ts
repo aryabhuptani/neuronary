@@ -43,7 +43,8 @@ const need = (u: User) => { if (!u) throw new HttpError(401, "this needs a token
 // ---------------------------------------------------------------- ids and formatting
 type Neuron = { layer: number; neuron: number; dose: number; expert?: number };
 const nkey = (n: Neuron) => `L${n.layer}${n.expert != null ? "E" + n.expert : ""}N${n.neuron}`; // no zero padding
-const dose = (d: number) => { let s = (d >= 0 ? "+" : "-") + Math.abs(d).toFixed(2).replace(/0+$/, ""); if (s.endsWith(".")) s += "0"; return s; };
+// full precision as stored (-0.525 stays -0.525), at least one decimal
+const dose = (d: number) => { let s = (d >= 0 ? "+" : "-") + String(Math.abs(d)); if (!s.includes(".") && !s.includes("e")) s += ".0"; return s; };
 const sorted = (ns: Neuron[]) => [...ns].sort((a, b) => a.layer - b.layer || (a.expert ?? -1) - (b.expert ?? -1) || a.neuron - b.neuron);
 const recipeStr = (ns: Neuron[]) => sorted(ns).map((n) => nkey(n) + dose(n.dose)).join(" ");
 function parseNeurons(s: string): Neuron[] {

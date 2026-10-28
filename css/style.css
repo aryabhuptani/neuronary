@@ -587,3 +587,10 @@ html:has(body.modal-open) { overscroll-behavior-y: none; } /* no pull-to-refresh
 .batch .bs { font-size: 12.5px; text-align: right; }
 .okflash { position: fixed; bottom: 16px; left: 50%; translate: -50% 0; z-index: 60; padding: 8px 14px; border-radius: 4px;
   background: var(--ink); color: var(--bg); font-size: 13px; box-shadow: var(--shadow); }
+
+/* combinations: ingredients line, dose-units hint, duplicate warning */
+.rec .combo { margin-top: 8px; font-size: 13.5px; }
+.rec .combo a { font-weight: 500; }
+.unitq { margin-left: 4px; color: var(--faint); text-decoration: underline dotted; cursor: help; text-transform: none; }
+.dupe { margin: 10px 0 0; padding-left: 8px; border-left: 3px solid var(--warn); font-size: 12.5px; color: var(--ink); }
+.dupe:empty { display: none; }

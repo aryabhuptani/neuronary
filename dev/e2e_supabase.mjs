@@ -108,6 +108,15 @@ try {
   check("edit saves", await waitFor((t) => document.querySelector("h1")?.textContent === `E2E edited ${t}`, 10000, tag));
   check("edit kept the id", await page.evaluate(() => location.hash) === `#/r/${rid}`);
 
+  // remix: pre-filled form, and the duplicate-neurons warning points at the original
+  await page.click('.ractions [data-ract="remix"]');
+  check("remix opens a pre-filled form", await waitFor(() => document.querySelector('[data-k="name"]')?.value === "" && document.querySelectorAll(".nr").length === 2, 5000));
+  check("duplicate neurons warned", await waitFor((t) => (document.querySelector("[data-dupe]")?.textContent || "").includes(`E2E edited ${t}`), 5000, tag),
+    await page.evaluate(() => document.querySelector("[data-dupe]")?.textContent));
+  await page.click("[data-discard]").catch(() => {});
+  await page.goto(BASE + "#/r/" + rid, { waitUntil: "networkidle0" });
+  await waitFor(() => !!document.querySelector(".modal .rec"), 8000);
+
   // the form keeps its inputs (no full re-render on tag/neuron changes); comma tags; quota line; batch import
   await page.keyboard.press("Escape");
   await waitFor(() => !document.querySelector(".modal"), 5000);
@@ -119,7 +128,7 @@ try {
   await page.type("[data-paste]", "L10N5+0.525");
   await page.keyboard.press("Enter");
   await sleep(200);
-  check("comma-separated tags become chips", await waitFor(() => document.querySelectorAll("[data-chips] .tag").length === 3, 3000),
+  check("comma-separated tags become chips", await waitFor(() => ["alpha", "beta", "gamma"].every((t) => [...document.querySelectorAll("[data-chips] .tag")].some((c) => c.firstChild.textContent === t)), 3000),
     await page.evaluate(() => document.querySelector("[data-chips]")?.textContent));
   check("inputs survive tag/neuron edits", await page.evaluate(() => window.__nameEl.isConnected));
   check("dose shows 3 decimals", await page.evaluate(() => /\+0\.525/.test(document.querySelector("[data-preview]").textContent)));
@@ -143,6 +152,7 @@ try {
   await page.click("[data-bcancel]");
   await page.goto(BASE + "#/r/" + rid, { waitUntil: "networkidle0" });
   await waitFor(() => !!document.querySelector('.ractions [data-ract="delete"]'), 10000);
+  await sleep(600); // let the sheet finish loading so the button isn't replaced under the click
 
   // delete
   await page.click('.ractions [data-ract="delete"]');
