@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027190930";
-import { createStore } from "./store.js?v=20261027190930";
+import { ABOUT_HTML } from "./about.js?v=20261027201029";
+import { createStore } from "./store.js?v=20261027201029";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027190930";
+} from "./format.js?v=20261027201029";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -389,7 +389,8 @@ suggest.addEventListener("mousedown", (e) => {
 });
 
 // ------------------------------------------------------------------ filtering
-function matchesQuery(r, q) {
+// rollouts: also search the example prompts and outputs (the "outputs" toggle, ?ex=1)
+function matchesQuery(r, q, rollouts = false) {
   if (!q) return true;
   const ns = parseRecipeStr(q);
   if (ns.length) {
@@ -397,7 +398,7 @@ function matchesQuery(r, q) {
     if (!ns.every((n) => keys.has(neuronKey(n)))) return false;
     q = q.replace(/L\s*\d+\s*(?:E\s*\d+\s*)?N\s*\d+\s*(?:[+-]\s*\d*\.?\d+)?/gi, " ");
   }
-  const { hay, words } = hayOf(r);
+  const { hay, words } = hayOf(r, rollouts);
   return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => {
     w = w.replace(/^[#@]/, "");
     if (hay.includes(w)) return true;
@@ -407,14 +408,16 @@ function matchesQuery(r, q) {
   });
 }
 
-// searchable text per recipe (name, description, tags, author, model, neurons, example prompts and outputs), cached
-const hayCache = new WeakMap();
-function hayOf(r) {
-  let h = hayCache.get(r);
+// searchable text per recipe (name, description, tags, author, model, neurons; plus example prompts and outputs when
+// rollouts are on), cached
+const hayCache = [new WeakMap(), new WeakMap()];
+function hayOf(r, rollouts) {
+  const cache = hayCache[rollouts ? 1 : 0];
+  let h = cache.get(r);
   if (!h) {
-    const hay = [r.name, r.description, r.tags.join(" "), r.author.handle, r.model, recipeStr(r.neurons), (r.aliases || []).join(" "), r.search_text || ""].join(" ").toLowerCase();
+    const hay = [r.name, r.description, r.tags.join(" "), r.author.handle, r.model, recipeStr(r.neurons), (r.aliases || []).join(" "), rollouts ? r.search_text || "" : ""].join(" ").toLowerCase();
     h = { hay, words: [...new Set(hay.split(/[^a-z0-9]+/).filter((x) => x.length >= 3))] };
-    hayCache.set(r, h);
+    cache.set(r, h);
   }
   return h;
 }
@@ -440,7 +443,7 @@ function filterRecipes(p) {
   const authors = (p.author || "").split(",").filter(Boolean);
   const [lo, hi] = (p.layers || "").split("-").map((x) => (x === "" || x == null ? null : +x));
   return RECIPES.filter((r) => {
-    if (!matchesQuery(r, p.q)) return false;
+    if (!matchesQuery(r, p.q, p.ex === "1")) return false;
     if (tags.length && !tags.every((t) => r.tags.includes(t))) return false;
     if (models.length && !models.includes(r.model)) return false;
     if (authors.length && !authors.includes(r.author.handle)) return false;
@@ -705,6 +708,7 @@ function renderBrowse(params) {
        <div class="foot"><a href="#" data-clear="layers">clear</a><a href="#" data-apply-layers>apply</a></div>`)}
     ${ddHtml("author", "author", authors.length === 1 ? "@" + authors[0] : authors.length || "",
       checklist("author", Object.entries(ac).sort((a, b) => b[1] - a[1]).map(([a, n]) => [a, n, "@" + a]), authors, true))}
+    <button class="extoggle ${p.ex === "1" ? "on" : ""}" data-extoggle aria-pressed="${p.ex === "1"}" title="also search example prompts and outputs">search outputs</button>
     <span class="count">${rs.length} ${rs.length === 1 ? "recipe" : "recipes"}</span>
     <span class="seg viewtoggle">${[["cards", I.grid], ["list", I.rows]].map(([v, ic]) => `<button data-view="${v}" class="${v === view ? "on" : ""}" aria-label="${v}">${ic}</button>`).join("")}</span>
   </div>`;
@@ -723,7 +727,8 @@ function renderBrowse(params) {
     }
     const nf = ["tags", "model", "n", "sign", "layers", "author"].filter((k) => p[k]).length;
     if (nf) tips.push(`${nf} filter${nf > 1 ? "s are" : " is"} on. <a href="${browseHref({ q: p.q })}">Clear filters</a>`);
-    if (p.q) tips.push(`Search covers names, descriptions, tags, authors, neuron ids like L14N8949, and example prompts and outputs.`);
+    if (p.q && p.ex !== "1") tips.push(`Search covers names, descriptions, tags, authors and neuron ids like L14N8949. <a href="${browseHref({ ...p, ex: "1" })}">Also search outputs</a>`);
+    else if (p.q) tips.push(`Searched names, descriptions, tags, authors, neuron ids, and example prompts and outputs.`);
     body = `<div class="empty">No recipes match.${tips.map((t) => `<p class="dim">${t}</p>`).join("")}</div>`;
   }
   else if (view === "cards") {
@@ -750,6 +755,7 @@ function renderBrowse(params) {
 function wireBrowse(p) {
   const set = (k, v) => { const q = { ...p, [k]: v }; go(browseHref(q)); };
   $$("[data-sort]").forEach((b) => (b.onclick = () => set("sort", b.dataset.sort)));
+  $("[data-extoggle]").onclick = () => set("ex", p.ex === "1" ? "" : "1");
   $("[data-random]").onclick = () => {
     const shown = filterRecipes(p).filter((r) => !r.draft);
     const pool = shown.length ? shown : RECIPES.filter((r) => !r.draft && !r.hidden);
