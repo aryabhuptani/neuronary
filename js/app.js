@@ -1,10 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261027234414";
-import { createStore } from "./store.js?v=20261027234414";
-import { randomPrompt } from "./prompts.js?v=20261027234414";
+import { ABOUT_HTML } from "./about.js?v=20261027235203";
+import { createStore } from "./store.js?v=20261027235203";
+import { randomPrompt } from "./prompts.js?v=20261027235203";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027234414";
+} from "./format.js?v=20261027235203";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -1236,7 +1236,8 @@ async function renderRepros(root, r) {
       <div class="rh"><span class="rres ${esc(x.result || "yes")}">${x.result === "no" ? "didn't reproduce" : x.result === "partial" ? "partly" : `${I.repro} reproduced`}</span>${whoHtml(x.author_handle)}<span class="faint">${esc(ago(x.created_at))}</span>${x.setup ? `<span class="dim rnote">${esc(x.setup)}</span>` : ""}
         ${u && (x.user_id === u.id || u.admin) ? `<button class="dim linkbtn" data-rdel="${x.id}">delete</button>` : ""}
         ${u && u.admin ? `<button class="dim linkbtn" data-rhide="${x.id}:${x.hidden ? 0 : 1}">${x.hidden ? "unhide" : "hide"}</button>` : ""}</div>
-      ${x.note ? `<div class="dim small">${esc(x.note)}</div>` : ""}${x.prompt ? `<div class="p">${esc(x.prompt)}</div>` : ""}<div class="o md">${md(x.output)}</div></div>`).join("");
+      ${x.note ? `<div class="rnotes">${linkify(x.note)}</div>` : ""}
+      <div class="rrun">${x.prompt ? `<div class="rlab">prompt</div><div class="rprompt">${esc(x.prompt)}</div>` : ""}<div class="rlab">output</div><div class="o md">${md(x.output)}</div></div></div>`).join("");
   const canAdd = !own && !mine;
   box.innerHTML = `${items || `<div class="faint">Nobody has reported running this yet.</div>`}
     ${canAdd ? `<button class="btn sbtn" data-rshow>${I.repro}<span>I ran this</span></button>
