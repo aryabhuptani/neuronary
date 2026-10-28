@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027172947";
-import { createStore } from "./store.js?v=20261027172947";
+import { ABOUT_HTML } from "./about.js?v=20261027173145";
+import { createStore } from "./store.js?v=20261027173145";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027172947";
+} from "./format.js?v=20261027173145";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -719,7 +719,7 @@ function recipeHtmlBlock(r, { modal }) {
         ${studio ? `<button class="btn ibtn" data-act="studio" title="download a file Neuron Studio can import">${I.download}<span>Studio</span></button>` : ""}
       </div>
       <div class="blk"><div class="lab">neurons</div>
-        ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}${edgeMark([n], r.model)}
+        ${sortNeurons(r.neurons).map((n) => { const u = neuronUses(n) - 1; return `<div class="nrow"><span class="rid">${neuronHtml(n)}</span>${copyBtn(neuronStr(n), "copy neuron")}
           ${u > 0 ? `<a class="in" href="#/n/${neuronKey(n)}">in ${u} other${u === 1 ? "" : "s"}</a>` : ""}</div>`; }).join("")}
       </div>
       <div class="blk"><div class="lab">method</div><div class="mono">${esc(methodTxt)}</div></div>

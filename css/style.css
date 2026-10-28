@@ -551,10 +551,12 @@ img.avatar, .about .shot img { outline: 1px solid var(--img-outline); outline-of
 
 /* early/late-layer warning: yellow info mark; on cards it sits in the top right corner */
 :root { --warn: #eab308; } :root[data-theme="dark"] { --warn: #facc15; }
-.edge { display: inline-flex; color: var(--warn); cursor: help; vertical-align: middle; margin-left: 6px; }
+.edges { display: inline-flex; gap: 2px; vertical-align: middle; margin-left: 6px; }
+.edge { display: inline-flex; color: var(--warn); cursor: help; }
 .edge svg { display: block; }
 .card { position: relative; }
-.card > .edge { position: absolute; top: 12px; right: 12px; margin: 0; padding: 4px; }
-.card:has(> .edge) .name { padding-right: 22px; }
+.card > .edges { position: absolute; top: 12px; right: 12px; margin: 0; }
+.card > .edges .edge { padding: 4px 2px; }
+.card:has(> .edges) .name { padding-right: 40px; }
 .tip { position: fixed; z-index: 80; max-width: 280px; padding: 7px 10px; border-radius: 4px; background: var(--ink); color: var(--bg);
   font: 12px/1.45 var(--font); pointer-events: none; box-shadow: var(--shadow); }

@@ -32,18 +32,18 @@ const EDGE_WHY = {
   late: "the last ~5 layers sit close to the output and mostly push specific words, so effects tend to be " +
     "word-literal rather than a persona or concept.",
 };
-// tooltip text for a recipe's edge-layer neurons, or "" if none
-export function edgeTip(ns, model) {
+// one warning per kind (early, late), however many neurons fall in it
+export function edgeTips(ns, model) {
   const by = { early: [], late: [] };
   for (const n of sortNeurons(ns)) { const e = edgeLayer(n, model); if (e) by[e].push(neuronKey(n)); }
   return ["early", "late"].filter((k) => by[k].length).map((k) =>
-    `${by[k].join(", ")} ${by[k].length > 1 ? "are" : "is"} in ${k === "early" ? "an early" : "a late"} layer. Neurons in ${EDGE_WHY[k]}`).join(" ");
+    `${k === "early" ? "Early" : "Late"} layer${by[k].length > 1 ? "s" : ""} (${by[k].join(", ")}). Neurons in ${EDGE_WHY[k]}`);
 }
 export const INFO_ICON = `<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M8 7.3v4.2" stroke="var(--bg)" stroke-width="1.8" stroke-linecap="round"/><circle cx="8" cy="4.6" r="1.05" fill="var(--bg)"/></svg>`;
-// the yellow info mark with the warning on hover; empty when no neuron is near either end
+// yellow info marks with the warning on hover: one for early layers, one for late; empty when neither
 export function edgeMark(ns, model) {
-  const t = edgeTip(ns, model);
-  return t ? `<span class="edge" data-tip="${esc(t)}" aria-label="${esc(t)}" role="img">${INFO_ICON}</span>` : "";
+  const ts = edgeTips(ns, model);
+  return ts.length ? `<span class="edges">${ts.map((t) => `<span class="edge" data-tip="${esc(t)}" aria-label="${esc(t)}" role="img">${INFO_ICON}</span>`).join("")}</span>` : "";
 }
 
 export function neuronHtml(n) {
