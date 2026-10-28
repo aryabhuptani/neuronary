@@ -1,9 +1,9 @@
-import { ABOUT_HTML } from "./about.js?v=20261027172625";
-import { createStore } from "./store.js?v=20261027172625";
+import { ABOUT_HTML } from "./about.js?v=20261027172947";
+import { createStore } from "./store.js?v=20261027172947";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027172625";
+} from "./format.js?v=20261027172947";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -828,18 +828,17 @@ async function renderRecipePage(id) {
 
 async function openModal(id) {
   document.body.classList.add("modal-open");
-  overlay.innerHTML = `<div class="modal"><div class="sheet"><button class="x" aria-label="close">×</button><div class="dim">…</div></div></div>`;
+  overlay.innerHTML = `<div class="modal"><div class="sheet"><div class="dim">…</div></div></div>`;
+  // closes with back, Escape, or a tap on the scrim around the sheet (no close button)
   const modal = $(".modal", overlay);
   modal.onclick = (e) => { if (e.target === modal) closeModalNav(); };
-  $(".x", overlay).onclick = closeModalNav;
   let r;
   try { r = await loadRecipe(id); } catch (e) { flashError(e); }
   if (parseRoute().id !== id) return;
   const sheet = $(".sheet", overlay);
-  if (!r) { sheet.innerHTML = `<button class="x" aria-label="close">×</button><div class="empty">No recipe called “${esc(id)}”.</div>`; $(".x", sheet).onclick = closeModalNav; return; }
+  if (!r) { sheet.innerHTML = `<div class="empty">No recipe called “${esc(id)}”.</div>`; return; }
   document.title = `${r.name} · neuronary`;
-  sheet.innerHTML = `<button class="x" aria-label="close">×</button>${recipeHtmlBlock(r, { modal: true })}`;
-  $(".x", sheet).onclick = closeModalNav;
+  sheet.innerHTML = `${recipeHtmlBlock(r, { modal: true })}`;
   wireRecipe(sheet, r);
 }
 

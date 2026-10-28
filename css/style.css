@@ -382,7 +382,7 @@ body.modal-open .fab { display: none !important; }
   .fab { display: inline-flex; }
   body.page-submit .fab { display: none; }
   .modal { padding: 48px 0 0; }
-  .modal .sheet { border-radius: 14px 14px 0 0; padding: 28px 18px 40px; min-height: 100%; }
+  .modal .sheet { border-radius: 14px 14px 0 0; padding: 20px 18px 40px; min-height: 100%; }
   .rec h1 { font-size: 30px; }
   .ex .pair { grid-template-columns: 1fr; gap: 12px; }
   .pagewrap { padding: 20px 16px 60px; }
