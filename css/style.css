@@ -684,3 +684,6 @@ a.who:hover { text-decoration: underline; }
   .ustats { grid-column: 1 / -1; justify-content: space-between; }
   .ustat { align-items: flex-start; }
 }
+
+.rprow { display: flex; gap: 6px; }
+.rprow input { flex: 1; min-width: 0; }

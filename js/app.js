@@ -1,9 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261027210846";
-import { createStore } from "./store.js?v=20261027210846";
+import { ABOUT_HTML } from "./about.js?v=20261027231540";
+import { createStore } from "./store.js?v=20261027231540";
+import { randomPrompt } from "./prompts.js?v=20261027231540";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027210846";
+} from "./format.js?v=20261027231540";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -1224,7 +1225,8 @@ async function renderRepros(root, r) {
   box.innerHTML = `${items || `<div class="faint">Nobody has reported running this yet.</div>`}
     ${canAdd ? `<button class="btn sbtn" data-rshow>${I.repro}<span>I ran this</span></button>
     <form class="rform" data-rform hidden>
-      <label class="f"><span>prompt</span><input data-rp value="${esc((r.examples && r.examples[0] && r.examples[0].prompt) || "")}"></label>
+      <div class="f"><span id="rp-lab">prompt <span class="faint">a random everyday one, so the run isn't the author's own example; use any</span></span>
+        <div class="rprow"><input data-rp aria-labelledby="rp-lab" value="${esc(randomPrompt())}"><button type="button" class="btn sbtn" data-rshuffle title="another prompt" aria-label="another prompt">${I.dice}</button></div></div>
       <div class="f"><span id="rres-lab">did it reproduce?</span><span class="seg" role="radiogroup" aria-labelledby="rres-lab" data-rres>
         <button type="button" class="on" data-res="yes" role="radio" aria-checked="true">yes</button><button type="button" data-res="partial" role="radio" aria-checked="false">partly</button><button type="button" data-res="no" role="radio" aria-checked="false">no</button></span></div>
       <label class="f"><span>what the steered model said for you</span><textarea data-ro required></textarea></label>
@@ -1240,6 +1242,7 @@ async function renderRepros(root, r) {
   };
   if (form) {
     $("[data-rcancel]", form).onclick = () => { form.hidden = true; show.hidden = false; };
+    $("[data-rshuffle]", form).onclick = () => { const i = $("[data-rp]", form); i.value = randomPrompt(i.value); };
     $$("[data-res]", form).forEach((b) => (b.onclick = () => $$("[data-res]", form).forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); })));
     form.onsubmit = async (e) => {
       e.preventDefault();

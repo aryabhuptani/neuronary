@@ -44,6 +44,16 @@ def load_norms(model):
         return None
 
 
+def everyday_prompts():
+    """prompts/everyday.json (local checkout, else neuronary.org)"""
+    local = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompts", "everyday.json")
+    if os.path.exists(local):
+        with open(local, encoding="utf-8") as f:
+            return json.load(f)["prompts"]
+    with urllib.request.urlopen("https://neuronary.org/prompts/everyday.json", timeout=10) as f:
+        return json.load(f)["prompts"]
+
+
 def load_recipe(src):
     if src.startswith("http://") or src.startswith("https://"):
         with urllib.request.urlopen(src) as f:
@@ -191,6 +201,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("recipe", help="path or URL to a recipe .json")
     ap.add_argument("--prompt", action="append", help="prompt to run (repeatable). Default: the recipe's example prompts")
+    ap.add_argument("--fresh", type=int, default=0, metavar="N", help="run N random everyday prompts (prompts/everyday.json) instead of the recipe's examples")
     ap.add_argument("--scale", type=float, default=1.0, help="multiply every dose by this")
     ap.add_argument("--compare", action="store_true", help="also generate the unsteered reply")
     ap.add_argument("--model", help="override the recipe's model id")
@@ -252,6 +263,10 @@ def main():
         print("sampling: " + ", ".join(f"{k}={v}" for k, v in samp.items()), file=sys.stderr)
     steer = Steerer(layers, recipe["neurons"], op, apply_to, units)
     prompts = a.prompt or [e["prompt"] for e in recipe.get("examples", [])] or ["Tell me about yourself."]
+    if a.fresh:  # prompts the author didn't use: the honest test of a recipe
+        import random
+        pool = [x for x in everyday_prompts() if x not in prompts]
+        prompts = (a.prompt or []) + random.sample(pool, min(a.fresh, len(pool)))
     results = []
     for p in prompts:
         print(f"\n> {p}\n", file=sys.stderr)
