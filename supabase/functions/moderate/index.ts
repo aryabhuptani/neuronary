@@ -9,6 +9,7 @@ const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 
 function describe(kind: string, row: Record<string, unknown>): string {
   if (kind === "comment") return `New comment:\n\n${row.body}`;
+  if (kind === "profile") return `New username (picked by an account without a linked X profile):\n\n${row.handle}`;
   if (kind === "reproduction") return `New reproduction report (someone's own run of a recipe):\n\nresult: ${row.result ?? ""}\nsetup: ${row.setup ?? ""}\nprompt: ${row.prompt ?? ""}\noutput: ${row.output}\nnote: ${row.note ?? ""}`;
   const ex = ((row.examples as Array<Record<string, string>>) ?? [])
     .map((e, i) => `example ${i + 1} prompt: ${e.prompt}\nexample ${i + 1} output: ${e.output}` + (e.base_output ? `\nexample ${i + 1} unsteered output: ${e.base_output}` : "")).join("\n");
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     return new Response("forbidden", { status: 403 });
   }
   const { kind, id } = await req.json();
-  const table = kind === "comment" ? "comments" : kind === "reproduction" ? "reproductions" : "recipes";
+  const table = ({ comment: "comments", reproduction: "reproductions", profile: "profiles" } as Record<string, string>)[kind] ?? "recipes";
   const { data: row, error } = await sb.from(table).select("*").eq("id", id).maybeSingle();
   if (error || !row) return new Response("gone", { status: 200 });
 
@@ -52,7 +53,13 @@ Deno.serve(async (req) => {
   } catch (e) {
     err = String(e).slice(0, 500);
   }
-  if (verdict === "remove" || verdict === "review") { // review: hidden until an admin approves it
+  if (kind === "profile") {
+    // usernames can't be hidden: a removed one is renamed to user_xxxxxx; review goes to the admin queue
+    if (verdict === "remove") {
+      const { data: h } = await sb.rpc("rename_flagged_handle", { uid: id });
+      reason = `${reason} (was "${row.handle}", renamed to ${h})`;
+    }
+  } else if (verdict === "remove" || verdict === "review") { // review: hidden until an admin approves it
     await sb.from(table).update({ hidden: true }).eq("id", id);
   }
   await sb.from("moderation_log").insert({ kind, target_id: String(id), verdict, reason, model, error: err });

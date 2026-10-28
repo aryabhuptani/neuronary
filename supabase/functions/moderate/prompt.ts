@@ -33,4 +33,11 @@ before it goes public:
 low-effort or off-topic but genuine comments, criticism, disagreement, self-promotion of related research. When torn
 between allow and review, pick review; when torn between review and remove, pick review.
 
+Usernames are judged differently: a username is shown next to everything the person posts, with no context around it.
+"remove" a username that contains a slur or hate term, even hidden inside a compound word, spelled with numbers or
+symbols, or run together with other words (e.g. "bignig", "k1kelover", "tranny_hunter"); names of hate figures or
+extremist groups; anything sexual involving minors; or impersonation of a real, named person. "review" a name you
+can't parse but that looks like it might hide one of those. "allow" everything else, including crude, edgy, sexual or
+silly names ("cumgoblin", "evilqwenfan", "deathbot9000").
+
 Reply with only a JSON object: {"verdict": "allow" | "review" | "remove", "reason": "<under 15 words>"}`;
