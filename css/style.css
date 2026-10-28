@@ -692,3 +692,8 @@ a.who:hover { text-decoration: underline; }
 .rid .nk { white-space: nowrap; }
 .rid .nmore { font-family: var(--font); font-size: 12px; color: var(--dim); white-space: nowrap; }
 [data-unfold] { margin-top: 4px; }
+
+/* reproduction tally: ✓ worked, ◐ partly, ✗ didn't */
+.rtally { display: inline-flex; gap: 8px; align-items: center; }
+.rtally .rres { display: inline-flex; align-items: center; gap: 3px; font: 500 12.5px var(--mono); }
+.rec .meta .rtally .rres { font-family: var(--font); font-weight: 400; }

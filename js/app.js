@@ -1,10 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261027232754";
-import { createStore } from "./store.js?v=20261027232754";
-import { randomPrompt } from "./prompts.js?v=20261027232754";
+import { ABOUT_HTML } from "./about.js?v=20261027234140";
+import { createStore } from "./store.js?v=20261027234140";
+import { randomPrompt } from "./prompts.js?v=20261027234140";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027232754";
+} from "./format.js?v=20261027234140";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -22,6 +22,8 @@ let RECIPES = [];
 }
 
 const I = {
+  rpart: '<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor"/></svg>',
+  rno: '<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   share: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.5M5 5.2 8 2.2l3 3M3.5 8.5v5h9v-5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   repro: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8.5 5.5 11.5 10.5 5M7.5 11.5 8.5 12.5 13.5 5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   star: '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>',
@@ -133,6 +135,13 @@ function votesHtml(r, cls = "") {
 const tagHref = (t) => browseHref({ tags: [t] });
 const tagsHtml = (tags, on = []) => tags.map((t) => `<a class="tag ${on.includes(t) ? "on" : ""}" href="${tagHref(t)}">${esc(t)}</a>`).join("");
 const shortModel = (m) => m.split("/").pop();
+// reproduction results: worked / partly / didn't, each only when non-zero
+function reproHtml(r, long = false) {
+  const parts = [[r.reproductions, "yes", I.repro, "reproduced"], [r.repro_partial, "partial", I.rpart, "partly reproduced"], [r.repro_failed, "no", I.rno, "didn't reproduce"]]
+    .filter(([n]) => n > 0)
+    .map(([n, k, ic, label]) => `<span class="rres ${k}" title="${n} ${label}">${ic}${long ? ` ${n} ${label}` : n}</span>`);
+  return parts.length ? `<span class="rtally">${parts.join("")}</span>` : "";
+}
 const isTrusted = (h) => !!(store.trusted && store.trusted.has(h));
 const userHref = (h) => `/u/${encodeURIComponent(h)}`;
 const whoHtml = (h) => `<a class="who${isTrusted(h) ? " trusted" : ""}" href="${userHref(h)}"${isTrusted(h) ? ' title="trusted publisher"' : ""}>@${esc(h)}</a>`;
@@ -144,7 +153,7 @@ function cardHtml(r, on) {
     <div class="rid">${recipeHtml(r.neurons, 8)}</div>
     <div class="desc">${esc(r.description)}</div>
     <div class="tags">${r.tags.slice(0, 5).map((t) => `<span class="tag ${on.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div>
-    <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span>${r.reproductions ? `<span class="cmt repro" title="reproduced by ${r.reproductions} ${r.reproductions === 1 ? "person" : "people"}">${I.repro}${r.reproductions}</span>` : ""}${whoHtml(r.author.handle)}</div>
+    <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span>${reproHtml(r)}${whoHtml(r.author.handle)}</div>
   </article>`;
 }
 
@@ -927,7 +936,7 @@ function recipeHtmlBlock(r, { modal }) {
       ${ingredients.length ? `<div class="combo"><span class="dim">combines</span> ${[...ingredients.map((x) => `<a href="/r/${esc(x.id)}">${esc(x.name)}</a>`),
         ...leftover.map((n) => `<a href="/n/${neuronKey(n)}" class="mono" title="no recipe posted for this neuron alone">${neuronKey(n)}</a>`)].join(` <span class="dim">+</span> `)}
         ${doseDiffs.length ? `<div class="dim combonote">different doses: ${esc(doseDiffs.join("; "))}</div>` : ""}</div>` : ""}
-      <div class="meta"><a href="${userHref(r.author.handle)}"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>${r.reproductions ? ` &nbsp;·&nbsp; <span class="repro">${I.repro} reproduced by ${r.reproductions}</span>` : ""}
+      <div class="meta"><a href="${userHref(r.author.handle)}"${isTrusted(r.author.handle) ? ' class="trusted" title="trusted publisher"' : ""}>@${esc(r.author.handle)}</a>${r.reproductions || r.repro_partial || r.repro_failed ? ` &nbsp;·&nbsp; ${reproHtml(r, true)}` : ""}
         &nbsp;·&nbsp; <a href="${browseHref({ model: r.model })}" class="mono">${esc(r.model)}</a>${r.date ? ` &nbsp;·&nbsp; ${esc(r.date.slice(0, 10))}` : ""}
         ${r.source ? ` &nbsp;·&nbsp; <a href="${esc(r.source)}" target="_blank" rel="noopener">source</a>` : ""}${r.origin === "local" ? ` &nbsp;·&nbsp; <span class="faint">only in this browser</span>` : ""}${r.origin === "demo" ? ` &nbsp;·&nbsp; <span class="faint">demo fixture</span>` : ""}
 </div>
@@ -951,7 +960,7 @@ function recipeHtmlBlock(r, { modal }) {
         ${examples || `<div class="faint">—</div>`}
       </section>
       <section>
-        <div class="sechead"><h2>Reproductions</h2><span class="faint mono" data-rcount>${r.reproductions || 0}</span>${r.repro_partial || r.repro_failed ? `<span class="dim small">${[r.repro_partial ? `${r.repro_partial} partly` : "", r.repro_failed ? `${r.repro_failed} didn't` : ""].filter(Boolean).join(" · ")}</span>` : ""}</div>
+        <div class="sechead"><h2>Reproductions</h2><span data-rcount>${reproHtml(r) || `<span class="faint mono">0</span>`}</span></div>
         <div data-repros><div class="dim">…</div></div>
       </section>
       <section>
@@ -1259,9 +1268,10 @@ async function renderRepros(root, r) {
       try {
         const result = $("[data-rres] .on", form).dataset.res;
         await store.reproduce(r.id, { prompt: $("[data-rp]", form).value, output, note: $("[data-rn]", form).value.trim(), setup: $("[data-rsetup]", form).value.trim(), result });
-        if (result === "yes") r.reproductions = (r.reproductions || 0) + 1;
-        const rc = $("[data-rcount]", root); if (rc) rc.textContent = r.reproductions;
-        const i = RECIPES.findIndex((x) => x.id === r.id); if (i >= 0) RECIPES[i].reproductions = r.reproductions;
+        const key = { yes: "reproductions", partial: "repro_partial", no: "repro_failed" }[result];
+        r[key] = (r[key] || 0) + 1;
+        const rc = $("[data-rcount]", root); if (rc) rc.innerHTML = reproHtml(r);
+        const i = RECIPES.findIndex((x) => x.id === r.id); if (i >= 0) Object.assign(RECIPES[i], { reproductions: r.reproductions, repro_partial: r.repro_partial, repro_failed: r.repro_failed });
         renderRepros(root, r);
       } catch (err) { btn.disabled = false; flashError(err); }
     };
