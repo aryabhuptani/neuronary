@@ -14,6 +14,7 @@ Needs torch and transformers new enough for your model (Qwen3.5 needs transforme
 """
 import argparse
 import json
+import os
 import sys
 import urllib.request
 
@@ -27,6 +28,20 @@ CALIBRATION = (
     "def merge(a, b):\n    out = []\n    while a and b:\n        out.append(a.pop(0) if a[0] < b[0] else b.pop(0))\n"
     "    return out + a + b\nShe asked me what I thought of the plan, and I told her honestly that it seemed rushed. "
 )
+
+
+def load_norms(model):
+    """per-layer median residual norms from norms/<model>.json (local checkout, else neuronary.org), or None"""
+    fname = model.replace("/", "__") + ".json"
+    local = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "norms", fname)
+    try:
+        if os.path.exists(local):
+            with open(local, encoding="utf-8") as f:
+                return json.load(f)["medians"]
+        with urllib.request.urlopen(f"https://neuronary.org/norms/{fname}", timeout=10) as f:
+            return json.load(f)["medians"]
+    except Exception:
+        return None
 
 
 def load_recipe(src):
@@ -189,6 +204,7 @@ def main():
     ap.add_argument("--rep-pen", type=float, help="repetition penalty. Default: the recipe's sampling.repetition_penalty, else 1")
     ap.add_argument("--thinking", action="store_true", help="enable the model's thinking mode")
     ap.add_argument("--calib", help="text file to measure residual norms on, instead of the built-in calibration text")
+    ap.add_argument("--measure", action="store_true", help="measure residual norms now instead of using the published table")
     ap.add_argument("--json", dest="json_out", help="write results as recipe-style examples to this file")
     a = ap.parse_args()
 
@@ -214,8 +230,13 @@ def main():
         if norm == "raw":
             units = {(n["layer"], n["neuron"]): 1.0 for n in recipe["neurons"]}
         else:
-            text = open(a.calib, encoding="utf-8").read() if a.calib else CALIBRATION
-            med = residual_medians(model, tok, layers, sorted({n["layer"] for n in recipe["neurons"]}), text, device)
+            wanted = sorted({n["layer"] for n in recipe["neurons"]})
+            table = None if (a.calib or a.measure) else load_norms(name)
+            if table:  # the published table (norms/), so a dose means exactly what it means on the site
+                med = {l: table[l] for l in wanted}
+            else:
+                text = open(a.calib, encoding="utf-8").read() if a.calib else CALIBRATION
+                med = residual_medians(model, tok, layers, wanted, text, device)
             for n in recipe["neurons"]:
                 col = layers[n["layer"]].mlp.down_proj.weight[:, n["neuron"]].float()
                 units[(n["layer"], n["neuron"])] = med[n["layer"]] / float(col.norm())

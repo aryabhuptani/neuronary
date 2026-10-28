@@ -20,6 +20,9 @@ At the input of layer L's `mlp.down_proj` (where `silu(gate) * up` lives), every
 
     act[n] += dose * median(||residual leaving layer L||, tokens 1:) / ||W_down[:, n]||
 
+The medians are published per model at `https://neuronary.org/norms/<org>__<model>.json` (e.g. `Qwen__Qwen3.5-4B.json`,
+measured once with `scripts/norms.py`). Use that table rather than measuring yourself, so doses match the site exactly.
+
 Dose 1 moves the residual by one median residual norm along the neuron's output direction. The median comes from a fixed
 calibration text (see `scripts/run.py` in github.com/lyramakesmusic/neuronary). `method.op = "mul"` multiplies instead.
 

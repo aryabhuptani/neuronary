@@ -119,6 +119,10 @@ function genArgs(r) {
   return a.join(", ") + ", ";
 }
 
+// Published per-layer median residual norms (norms/*.json, measured once by scripts/norms.py): the snippet uses these
+// instead of measuring at run time, so a dose means the same thing everywhere.
+export const NORMS = { "Qwen/Qwen3.5-4B": [2.3158, 2.9803, 2.9597, 4.3864, 5.0908, 6.1972, 7.1642, 7.2929, 7.8355, 8.3318, 9.2452, 9.1403, 9.267, 9.7441, 10.3534, 10.6444, 10.9506, 11.8499, 13.8992, 16.2707, 18.0496, 20.4401, 24.8439, 26.1223, 29.2717, 31.9403, 35.2483, 36.898, 42.789, 46.8283, 52.7007, 66.7154] };
+
 export function pythonSnippet(r) {
   const m = methodOf(r);
   const ns = sortNeurons(r.neurons).filter((n) => pyInt(n.layer) && pyInt(n.neuron) && pyNum(n.dose))
@@ -126,6 +130,7 @@ export function pythonSnippet(r) {
   const prompt = (r.examples && r.examples[0] && r.examples[0].prompt) || "Tell me about yourself.";
   const model = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(r.model) ? r.model : "Qwen/Qwen3.5-4B";
   const think = r.sampling && r.sampling.thinking === true ? "True" : "False";
+  const table = NORMS[model] && r.neurons.every((n) => NORMS[model][n.layer] != null) ? NORMS[model] : null;
   const head = `# ${oneLine(r.name)}: ${recipeStr(r.neurons.filter((n) => pyInt(n.layer) && pyInt(n.neuron) && pyNum(n.dose)))}`;
   if (m.op === "mul") {
     return `${head}
@@ -160,7 +165,13 @@ MODEL = "${model}"
 NEURONS = [  # (layer, neuron, dose)
 ${ns}
 ]
-CALIBRATION = (
+${table ? `# median ||residual leaving layer L|| from the published table (neuronary.org/norms/${model.replace("/", "__")}.json)
+MEDIAN = {${[...new Set(sortNeurons(r.neurons).map((n) => n.layer))].filter((l) => table[l] != null).map((l) => `${l}: ${table[l]}`).join(", ")}}
+tok = AutoTokenizer.from_pretrained(MODEL)
+model = AutoModelForImageTextToText.from_pretrained(MODEL, dtype=torch.bfloat16, device_map="auto").eval()
+layers = model.model.language_model.layers
+med = MEDIAN
+` : `CALIBRATION = (
     "The history of the region is long and varied. Farmers settled the river valley first, then traders arrived, "
     "and by the twelfth century the town had a market, a bridge, and a quarrel with its neighbours over tolls. "
     "def merge(a, b):\\n    out = []\\n    while a and b:\\n        out.append(a.pop(0) if a[0] < b[0] else b.pop(0))\\n"
@@ -181,7 +192,7 @@ with torch.inference_mode():
     model(**tok(CALIBRATION, return_tensors="pt").to(model.device), use_cache=False)
 for h in hooks:
     h.remove()
-
+`}
 for l, n, dose in NEURONS:
     push = dose * med[l] / layers[l].mlp.down_proj.weight[:, n].float().norm().item()
     def hook(mod, inp, n=n, push=push):
