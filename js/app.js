@@ -1,10 +1,10 @@
-import { ABOUT_HTML } from "./about.js?v=20261027234140";
-import { createStore } from "./store.js?v=20261027234140";
-import { randomPrompt } from "./prompts.js?v=20261027234140";
+import { ABOUT_HTML } from "./about.js?v=20261027234414";
+import { createStore } from "./store.js?v=20261027234414";
+import { randomPrompt } from "./prompts.js?v=20261027234414";
 import {
   esc, doseStr, neuronKey, neuronStr, sortNeurons, recipeStr, recipeHtml, neuronHtml, edgeMark, setKey, parseRecipeStr, parseNeuronQuery,
   methodOf, DEFAULT_METHOD, samplingText, md, recipeFile, recipeJson, pythonSnippet, studioFile, fromStudio, slugify, ago, avatarHtml, copyText, download,
-} from "./format.js?v=20261027234140";
+} from "./format.js?v=20261027234414";
 
 const CFG = window.NEURONARY || {};
 const $ = (s, el = document) => el.querySelector(s);
@@ -153,7 +153,7 @@ function cardHtml(r, on) {
     <div class="rid">${recipeHtml(r.neurons, 8)}</div>
     <div class="desc">${esc(r.description)}</div>
     <div class="tags">${r.tags.slice(0, 5).map((t) => `<span class="tag ${on.includes(t) ? "on" : ""}">${esc(t)}</span>`).join("")}</div>
-    <div class="foot">${votesHtml(r)}<span class="cmt">${I.bubble}${r.comments}</span>${reproHtml(r)}${whoHtml(r.author.handle)}</div>
+    <div class="foot">${votesHtml(r)}${[r.reproductions, r.repro_partial, r.repro_failed].every((n) => n > 0) ? "" /* all three tallies showing: the comment count makes room */ : `<span class="cmt">${I.bubble}${r.comments}</span>`}${reproHtml(r)}${whoHtml(r.author.handle)}</div>
   </article>`;
 }
 
